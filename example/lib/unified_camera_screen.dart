@@ -1,0 +1,1220 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'nosmai_app_manager.dart';
+
+class UnifiedCameraScreen extends StatefulWidget {
+  const UnifiedCameraScreen({super.key});
+
+  @override
+  State<UnifiedCameraScreen> createState() => _UnifiedCameraScreenState();
+}
+
+class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
+    with TickerProviderStateMixin {
+  final NosmaiFlutter _nosmai = NosmaiAppManager.instance.nosmai;
+
+  // State management
+  // ignore: unused_field
+  bool _isInitialized = false;
+  bool _isReady = false;
+  bool _isRecording = false;
+  bool _isFrontCamera = true;
+
+  // Filter categories
+  final List<FilterCategory> _categories = [
+    FilterCategory(
+      name: 'Effects',
+      icon: Icons.auto_awesome,
+      filters: [],
+    ),
+    FilterCategory(
+      name: 'Beauty',
+      icon: Icons.face_retouching_natural,
+      filters: [
+        FilterItem(
+            id: 'skin_smoothing',
+            name: 'Smooth',
+            type: FilterType.slider,
+            value: 0.0,
+            min: 0.0,
+            max: 10.0),
+        FilterItem(
+            id: 'skin_whitening',
+            name: 'Brighten',
+            type: FilterType.slider,
+            value: 0.0,
+            min: 0.0,
+            max: 10.0),
+        FilterItem(
+            id: 'face_slimming',
+            name: 'Slim Face',
+            type: FilterType.slider,
+            value: 0.0,
+            min: 0.0,
+            max: 10.0),
+        FilterItem(
+            id: 'eye_enlargement',
+            name: 'Big Eyes',
+            type: FilterType.slider,
+            value: 0.0,
+            min: 0.0,
+            max: 10.0),
+        FilterItem(
+            id: 'nose_size',
+            name: 'Nose Size',
+            type: FilterType.slider,
+            value: 50.0,
+            min: 0.0,
+            max: 100.0),
+      ],
+    ),
+    FilterCategory(
+      name: 'Color',
+      icon: Icons.palette,
+      filters: [
+        FilterItem(
+            id: 'brightness',
+            name: 'Brightness',
+            type: FilterType.slider,
+            value: 0.0,
+            min: -1.0,
+            max: 1.0),
+        FilterItem(
+            id: 'contrast',
+            name: 'Contrast',
+            type: FilterType.slider,
+            value: 1.0,
+            min: 0.0,
+            max: 2.0),
+        FilterItem(
+            id: 'temperature',
+            name: 'Warmth',
+            type: FilterType.slider,
+            value: 5000.0,
+            min: 2000.0,
+            max: 8000.0),
+      ],
+    ),
+    FilterCategory(
+      name: 'HSB',
+      icon: Icons.tune,
+      filters: [
+        FilterItem(
+            id: 'hsb_hue',
+            name: 'Hue',
+            type: FilterType.slider,
+            value: 0.0,
+            min: -360.0,
+            max: 360.0),
+        FilterItem(
+            id: 'hsb_saturation',
+            name: 'Saturation',
+            type: FilterType.slider,
+            value: 1.0,
+            min: 0.0,
+            max: 2.0),
+        FilterItem(
+            id: 'hsb_brightness',
+            name: 'Brightness',
+            type: FilterType.slider,
+            value: 1.0,
+            min: 0.0,
+            max: 2.0),
+      ],
+    ),
+  ];
+
+  int _selectedCategoryIndex = 0;
+  FilterItem? _activeFilter;
+
+  // UI Controllers
+  late AnimationController _recordButtonController;
+  late AnimationController _filterPanelController;
+  bool _isFilterPanelVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _recordButtonController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _filterPanelController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _initializeSDK();
+    _loadEffectFilters();
+  }
+
+  Future<void> _loadEffectFilters() async {
+    try {
+      final filters = await _nosmai.getFilters();
+      final effectFilters = <FilterItem>[];
+
+      for (final filter in filters) {
+        if (filter is NosmaiLocalFilter) {
+          effectFilters.add(FilterItem(
+            id: filter.path,
+            name: filter.displayName,
+            type: FilterType.effect,
+            path: filter.path,
+          ));
+        }
+      }
+
+      setState(() {
+        _categories[0].filters = effectFilters;
+      });
+    } catch (e) {
+      debugPrint('Error loading effect filters: $e');
+    }
+  }
+
+  Future<void> _initializeSDK() async {
+    // Request camera permission
+    final status = await Permission.camera.request();
+    if (!mounted) return;
+
+    if (status != PermissionStatus.granted) {
+      Navigator.pop(context);
+      return;
+    }
+
+    // SDK should already be initialized at app level
+    if (NosmaiAppManager.instance.isInitialized) {
+      setState(() {
+        _isInitialized = true;
+      });
+      await _setupCamera();
+    }
+  }
+
+  Future<void> _setupCamera() async {
+    try {
+      await _nosmai.configureCamera(
+        position: _isFrontCamera
+            ? NosmaiCameraPosition.front
+            : NosmaiCameraPosition.back,
+      );
+
+      // Face detection is automatically enabled when beauty filters are used
+
+      // Start processing
+      await _nosmai.startProcessing();
+
+      if (!mounted) return;
+      setState(() {
+        _isReady = true;
+      });
+    } catch (e) {
+      debugPrint('Error setting up camera: $e');
+    }
+  }
+
+  void _toggleFilterPanel() {
+    setState(() {
+      _isFilterPanelVisible = !_isFilterPanelVisible;
+    });
+    if (_isFilterPanelVisible) {
+      _filterPanelController.forward();
+    } else {
+      _filterPanelController.reverse();
+    }
+  }
+
+  Future<void> _applyFilter(FilterItem filter) async {
+    setState(() {
+      _activeFilter = filter;
+    });
+
+    try {
+      switch (filter.id) {
+        // Beauty filters
+        case 'skin_smoothing':
+          await _nosmai.applySkinSmoothing(filter.value);
+          break;
+        case 'skin_whitening':
+          await _nosmai.applySkinWhitening(filter.value);
+          break;
+        case 'face_slimming':
+          await _nosmai.applyFaceSlimming(filter.value);
+          break;
+        case 'eye_enlargement':
+          await _nosmai.applyEyeEnlargement(filter.value);
+          break;
+        case 'nose_size':
+          await _nosmai.applyNoseSize(filter.value);
+          break;
+
+        // Color filters
+        case 'brightness':
+          await _nosmai.applyBrightnessFilter(filter.value);
+          break;
+        case 'contrast':
+          await _nosmai.applyContrastFilter(filter.value);
+          break;
+        case 'temperature':
+          await _nosmai.applyWhiteBalance(temperature: filter.value, tint: 0.0);
+          break;
+
+        // HSB filters
+        case 'hsb_hue':
+          await _applyHSBFilters();
+          break;
+        case 'hsb_saturation':
+          await _applyHSBFilters();
+          break;
+        case 'hsb_brightness':
+          await _applyHSBFilters();
+          break;
+
+        // Effect filters
+        default:
+          if (filter.type == FilterType.effect && filter.path != null) {
+            await _nosmai.applyEffect(filter.path!);
+          }
+      }
+    } catch (e) {
+      debugPrint('Error applying filter: $e');
+    }
+  }
+
+  Future<void> _applyHSBFilters() async {
+    final hueFilter =
+        _categories[3].filters.firstWhere((f) => f.id == 'hsb_hue');
+    final satFilter =
+        _categories[3].filters.firstWhere((f) => f.id == 'hsb_saturation');
+    final brightnessFilter =
+        _categories[3].filters.firstWhere((f) => f.id == 'hsb_brightness');
+
+    try {
+      await _nosmai.resetHSBFilter();
+
+      // Apply hue using standalone filter (HSB hue not implemented)
+      if (hueFilter.value != 0.0) {
+        double hueValue =
+            hueFilter.value < 0 ? hueFilter.value + 360 : hueFilter.value;
+        await _nosmai.applyHue(hueValue);
+      }
+
+      // Apply saturation and brightness
+      await _nosmai.adjustHSB(
+        hue: 0.0,
+        saturation: satFilter.value,
+        brightness: brightnessFilter.value,
+      );
+    } catch (e) {
+      debugPrint('Error applying HSB filters: $e');
+    }
+  }
+
+  Future<void> _resetAllFilters() async {
+    try {
+      await _nosmai.removeBuiltInFilters();
+      await _nosmai.resetHSBFilter();
+      await _nosmai.removeAllFilters();
+
+      // Reset all filter values
+      for (final category in _categories) {
+        for (final filter in category.filters) {
+          if (filter.type == FilterType.slider) {
+            setState(() {
+              filter.value = filter.defaultValue;
+            });
+          }
+        }
+      }
+
+      setState(() {
+        _activeFilter = null;
+      });
+    } catch (e) {
+      debugPrint('Error resetting filters: $e');
+    }
+  }
+
+  Future<void> _toggleRecording() async {
+    try {
+      if (_isRecording) {
+        _recordButtonController.reverse();
+        final result = await _nosmai.stopRecording();
+
+        if (!mounted) return;
+
+        setState(() => _isRecording = false);
+
+        if (result.success && result.videoPath != null) {
+          _showVideoSuccessDialog(result.videoPath!);
+        }
+      } else {
+        final success = await _nosmai.startRecording();
+
+        if (!mounted) return;
+
+        if (success) {
+          setState(() => _isRecording = true);
+          _recordButtonController.forward();
+        }
+      }
+    } catch (e) {
+      debugPrint('Recording error: $e');
+    }
+  }
+
+  Future<void> _capturePhoto() async {
+    // Add haptic feedback
+    HapticFeedback.mediumImpact();
+
+    try {
+      final result = await _nosmai.capturePhoto();
+
+      if (result.success) {
+        _showPhotoSuccessDialog(result);
+      }
+    } catch (e) {
+      debugPrint('Photo capture error: $e');
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    setState(() {
+      _isFrontCamera = !_isFrontCamera;
+    });
+    await _nosmai.switchCamera();
+  }
+
+  void _showPhotoSuccessDialog(NosmaiPhotoResult result) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
+      isDismissible: true,
+      enableDrag: false,
+      builder: (context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Icon(
+              Icons.check_circle,
+              color: Color(0xFF4ECDC4),
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Photo Captured!',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Done'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      if (result.imageData != null) {
+                        await _savePhotoToGallery(result);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6C5CE7),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Save to Gallery'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _savePhotoToGallery(NosmaiPhotoResult result) async {
+    try {
+      final permission = await Permission.photos.request();
+      if (permission != PermissionStatus.granted) return;
+
+      final imageResult = await _nosmai.saveImageToGallery(
+        result.imageData!,
+        name: "nosmai_photo_${DateTime.now().millisecondsSinceEpoch}",
+      );
+
+      if (imageResult['isSuccess'] == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Photo saved to gallery'),
+            backgroundColor: const Color(0xFF4ECDC4),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Failed to save photo: $e');
+    }
+  }
+
+  void _showVideoSuccessDialog(String videoPath) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Icon(
+              Icons.videocam,
+              color: Color(0xFF4ECDC4),
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Video Recorded!',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _saveVideoToGallery(videoPath);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6C5CE7),
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Save to Gallery'),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveVideoToGallery(String videoPath) async {
+    try {
+      final permission = await Permission.photos.request();
+      if (permission != PermissionStatus.granted) return;
+
+      final result = await _nosmai.saveVideoToGallery(
+        videoPath,
+        name: "nosmai_video_${DateTime.now().millisecondsSinceEpoch}",
+      );
+
+      if (result['isSuccess'] == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Video saved to gallery'),
+            backgroundColor: const Color(0xFF4ECDC4),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Failed to save video: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Camera Preview
+          if (_isReady)
+            const Positioned.fill(
+              child: RepaintBoundary(
+                child: NosmaiCameraPreview(),
+              ),
+            )
+          else
+            const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF6C5CE7),
+              ),
+            ),
+
+          // Top Controls
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.7),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Back button
+                      _buildIconButton(
+                        icon: Icons.arrow_back_ios_rounded,
+                        onTap: () => Navigator.pop(context),
+                      ),
+
+                      // Center controls
+                      Row(
+                        children: [
+                          if (_activeFilter != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                _activeFilter!.name,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+
+                      // Right controls
+                      Row(
+                        children: [
+                          _buildIconButton(
+                            icon: Icons.flip_camera_ios_rounded,
+                            onTap: _switchCamera,
+                          ),
+                          const SizedBox(width: 12),
+                          _buildIconButton(
+                            icon: Icons.refresh_rounded,
+                            onTap: _resetAllFilters,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Filter Panel Backdrop
+          if (_isFilterPanelVisible)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _toggleFilterPanel,
+                child: Container(
+                  color: Colors.transparent,
+                ),
+              ),
+            ),
+
+          // Filter Panel
+          if (_isFilterPanelVisible)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: AnimatedBuilder(
+                animation: _filterPanelController,
+                builder: (context, child) {
+                  final screenHeight = MediaQuery.of(context).size.height;
+                  final panelHeight = screenHeight < 700 
+                      ? screenHeight * 0.4 
+                      : 300.0;
+                  return Transform.translate(
+                    offset: Offset(
+                        0, panelHeight * (1 - _filterPanelController.value)),
+                    child: Opacity(
+                      opacity: _filterPanelController.value,
+                      child: _buildFilterPanel(),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+          // Bottom Controls
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Main Controls
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.9),
+                        Colors.black.withOpacity(0.6),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                  child: SafeArea(
+                    child: Column(
+                      children: [
+                        // Action Buttons
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              // Gallery
+                              _buildActionButton(
+                                icon: Icons.photo_library_rounded,
+                                onTap: () {},
+                                size: 20,
+                              ),
+
+                              // Capture Photo
+                              _buildActionButton(
+                                icon: Icons.camera_alt_rounded,
+                                onTap: _capturePhoto,
+                                size: 24,
+                              ),
+
+                              // Record Video
+                              GestureDetector(
+                                onTap: _toggleRecording,
+                                child: AnimatedBuilder(
+                                  animation: _recordButtonController,
+                                  builder: (context, child) {
+                                    return Container(
+                                      width: 60,
+                                      height: 60,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: _isRecording
+                                              ? Colors.red
+                                              : Colors.white,
+                                          width: 3,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Container(
+                                          width: 46,
+                                          height: 46,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: _isRecording
+                                                ? Colors.red
+                                                : Colors.white.withOpacity(0.3),
+                                          ),
+                                          child: Icon(
+                                            _isRecording
+                                                ? Icons.stop
+                                                : Icons.videocam,
+                                            color: Colors.white,
+                                            size: 24,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+
+                              // Filters
+                              _buildActionButton(
+                                icon: Icons.auto_awesome,
+                                onTap: _toggleFilterPanel,
+                                isActive: _isFilterPanelVisible,
+                                size: 20,
+                              ),
+
+                              // Effects
+                              _buildActionButton(
+                                icon: Icons.blur_on_rounded,
+                                onTap: () {
+                                  setState(() => _selectedCategoryIndex = 0);
+                                  if (!_isFilterPanelVisible) {
+                                    _toggleFilterPanel();
+                                  }
+                                },
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Recording Indicator
+          if (_isRecording)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Container(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Recording',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    double size = 24,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: size,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    double size = 24,
+    bool isActive = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: isActive
+              ? const Color(0xFF6C5CE7)
+              : Colors.white.withOpacity(0.2),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: size,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterPanel() {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final panelHeight = screenHeight < 700 
+        ? screenHeight * 0.4 
+        : 300.0;
+
+    return Container(
+      height: panelHeight,
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          // Handle
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(top: 12, bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          // Category Tabs
+          SizedBox(
+            height: 40,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _categories.length,
+              itemBuilder: (context, index) {
+                final category = _categories[index];
+                final isSelected = _selectedCategoryIndex == index;
+
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedCategoryIndex = index),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFF6C5CE7)
+                          : Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          category.icon,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          category.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Filter Content
+          Expanded(
+            child: _buildFilterContent(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterContent() {
+    final category = _categories[_selectedCategoryIndex];
+
+    if (category.filters.isEmpty) {
+      return Center(
+        child: Text(
+          'No filters available',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.5),
+            fontSize: 14,
+          ),
+        ),
+      );
+    }
+
+    // For effect filters, show horizontal scrollable list
+    if (category.name == 'Effects') {
+      return SizedBox(
+        height: 80,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: category.filters.length,
+          itemBuilder: (context, index) {
+            final filter = category.filters[index];
+            final isActive = _activeFilter?.id == filter.id;
+
+            return GestureDetector(
+              onTap: () => _applyFilter(filter),
+              child: Container(
+                margin: const EdgeInsets.only(right: 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isActive
+                            ? const Color(0xFF6C5CE7)
+                            : Colors.white.withOpacity(0.1),
+                        border: Border.all(
+                          color: isActive
+                              ? const Color(0xFF6C5CE7)
+                              : Colors.white.withOpacity(0.2),
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.auto_awesome,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      width: 60,
+                      child: Text(
+                        filter.name,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 10,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    // For slider filters, show horizontal scrollable list
+    return SizedBox(
+      height: 80,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: category.filters.length,
+        itemBuilder: (context, index) {
+          final filter = category.filters[index];
+
+          return Container(
+            width: 120,
+            margin: const EdgeInsets.only(right: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  filter.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  filter.max > 100
+                      ? filter.value.toStringAsFixed(0)
+                      : filter.value.toStringAsFixed(filter.max > 10 ? 0 : 2),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 10,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: const Color(0xFF6C5CE7),
+                    inactiveTrackColor: Colors.white.withOpacity(0.2),
+                    thumbColor: const Color(0xFF6C5CE7),
+                    overlayColor: const Color(0xFF6C5CE7).withOpacity(0.3),
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    trackHeight: 3,
+                  ),
+                  child: Slider(
+                    value: filter.value.clamp(filter.min, filter.max),
+                    min: filter.min,
+                    max: filter.max,
+                    onChanged: (value) {
+                      setState(() {
+                        filter.value = value;
+                      });
+                    },
+                    onChangeEnd: (_) => _applyFilter(filter),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _recordButtonController.dispose();
+    _filterPanelController.dispose();
+    super.dispose();
+  }
+}
+
+// Data Models
+enum FilterType { slider, toggle, effect }
+
+class FilterCategory {
+  final String name;
+  final IconData icon;
+  List<FilterItem> filters;
+
+  FilterCategory({
+    required this.name,
+    required this.icon,
+    required this.filters,
+  });
+}
+
+class FilterItem {
+  final String id;
+  final String name;
+  final FilterType type;
+  double value;
+  final double min;
+  final double max;
+  final String? path;
+
+  FilterItem({
+    required this.id,
+    required this.name,
+    required this.type,
+    this.value = 0.0,
+    this.min = 0.0,
+    this.max = 1.0,
+    this.path,
+  });
+
+  double get defaultValue {
+    switch (id) {
+      case 'contrast':
+      case 'hsb_saturation':
+      case 'hsb_brightness':
+        return 1.0;
+      case 'temperature':
+        return 5000.0;
+      default:
+        return 0.0;
+    }
+  }
+}
