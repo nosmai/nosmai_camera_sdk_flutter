@@ -1,7 +1,3 @@
-/// Nosmai Flutter Plugin Types
-/// 
-/// This file contains all the type definitions used by the Nosmai Flutter plugin.
-
 import 'dart:typed_data';
 
 /// Camera position enumeration
@@ -69,11 +65,13 @@ class NosmaiCloudFilter {
                      map['id']?.toString() ?? 
                      map['name']?.toString() ?? '';
     
-    // Parse filter category from metadata
+    // Parse filter category from metadata - match C++ CloudFilterInfo.filterCategory
     NosmaiFilterCategory filterCategory = NosmaiFilterCategory.unknown;
-    final filterTypeString = map['filterType']?.toString().toLowerCase();
-    if (filterTypeString != null) {
-      switch (filterTypeString) {
+    final filterCategoryString = map['filterCategory']?.toString().toLowerCase() ??
+                               map['category']?.toString().toLowerCase() ??
+                               map['filterType']?.toString().toLowerCase();
+    if (filterCategoryString != null) {
+      switch (filterCategoryString) {
         case 'beauty':
           filterCategory = NosmaiFilterCategory.beauty;
           break;
@@ -89,12 +87,12 @@ class NosmaiCloudFilter {
     return NosmaiCloudFilter(
       id: filterId,
       name: map['name']?.toString() ?? '',
-      displayName: map['displayName']?.toString() ?? '',
+      displayName: map['displayName']?.toString() ?? map['name']?.toString() ?? '',
       isFree: map['isFree'] as bool? ?? false,
       isDownloaded: map['isDownloaded'] as bool? ?? false,
       localPath: localPath,
       fileSize: map['fileSize'] as int?,
-      previewUrl: map['previewUrl']?.toString(),
+      previewUrl: map['previewUrl']?.toString() ?? map['thumbnailUrl']?.toString(),
       category: map['category']?.toString(),
       filterCategory: filterCategory,
     );

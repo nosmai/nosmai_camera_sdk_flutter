@@ -20,7 +20,7 @@
 
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
   FlutterMethodChannel* channel = [FlutterMethodChannel
-      methodChannelWithName:@"nosmai_camera_sdk"
+      methodChannelWithName:@"nosmai_flutter"
             binaryMessenger:[registrar messenger]];
   NosmaiFlutterPlugin* instance = [[NosmaiFlutterPlugin alloc] init];
   instance.channel = channel;
@@ -1090,6 +1090,11 @@
         filterPath = pathValue;
       } else if ([localPathValue isKindOfClass:[NSString class]]) {
         filterPath = localPathValue;
+      }
+      
+      // Add filterCategory field if available from C++ CloudFilterInfo
+      if (filter[@"filterCategory"] && ![filter[@"filterCategory"] isKindOfClass:[NSNull class]]) {
+        enhancedFilter[@"filterCategory"] = filter[@"filterCategory"];
       }
       
       if (filterPath && [[NSFileManager defaultManager] fileExistsAtPath:filterPath]) {

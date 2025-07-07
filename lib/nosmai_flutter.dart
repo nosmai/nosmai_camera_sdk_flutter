@@ -1,6 +1,6 @@
-import 'dart:async';
-import 'package:flutter/widgets.dart';
 
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'nosmai_flutter_platform_interface.dart';
 import 'nosmai_types.dart';
 
@@ -55,8 +55,7 @@ class NosmaiFlutter {
 
   /// Stream of download progress events
   Stream<NosmaiDownloadProgress> get onDownloadProgress {
-    _downloadProgressController ??=
-        StreamController<NosmaiDownloadProgress>.broadcast();
+    _downloadProgressController ??= StreamController<NosmaiDownloadProgress>.broadcast();
     return _downloadProgressController!.stream;
   }
 
@@ -188,6 +187,13 @@ class NosmaiFlutter {
     }
   }
 
+
+
+
+
+
+
+
   /// Load a Nosmai filter file
   ///
   /// [filePath] - Path to the .nosmai file
@@ -244,12 +250,7 @@ class NosmaiFlutter {
       if (_isRecording) {
         await stopRecording().catchError((e) {
           debugPrint('Error stopping recording during cleanup: $e');
-          return const NosmaiRecordingResult(
-            success: false,
-            duration: 0,
-            fileSize: 0,
-            error: 'Cleanup error',
-          );
+          return const NosmaiRecordingResult(success: false, duration: 0, fileSize: 0);
         });
       }
 
@@ -257,6 +258,7 @@ class NosmaiFlutter {
       if (_isProcessing) {
         await stopProcessing().catchError((e) {
           debugPrint('Error stopping processing during cleanup: $e');
+          return;
         });
       }
 
@@ -288,12 +290,7 @@ class NosmaiFlutter {
       if (_isRecording) {
         await stopRecording().catchError((e) {
           debugPrint('Error stopping recording during cleanup: $e');
-          return const NosmaiRecordingResult(
-            success: false,
-            duration: 0,
-            fileSize: 0,
-            error: 'Internal cleanup error',
-          );
+          return const NosmaiRecordingResult(success: false, duration: 0, fileSize: 0);
         });
       }
 
@@ -301,6 +298,7 @@ class NosmaiFlutter {
       if (_isProcessing) {
         await stopProcessing().catchError((e) {
           debugPrint('Error stopping processing during cleanup: $e');
+          return;
         });
       }
 
@@ -409,8 +407,7 @@ class NosmaiFlutter {
   /// Get all filters of a specific category
   ///
   /// Returns filters that match the given category type
-  Future<List<dynamic>> getFiltersByCategory(
-      NosmaiFilterCategory category) async {
+  Future<List<dynamic>> getFiltersByCategory(NosmaiFilterCategory category) async {
     final allFilters = await getFilters();
     return allFilters.where((filter) {
       if (filter is NosmaiLocalFilter) {
@@ -425,29 +422,28 @@ class NosmaiFlutter {
   /// Organize all filters by their category
   ///
   /// Returns a map with categories as keys and lists of filters as values
-  Future<Map<NosmaiFilterCategory, List<dynamic>>>
-      organizeFiltersByCategory() async {
+  Future<Map<NosmaiFilterCategory, List<dynamic>>> organizeFiltersByCategory() async {
     final allFilters = await getFilters();
     final Map<NosmaiFilterCategory, List<dynamic>> organized = {};
-
+    
     // Initialize categories
     for (final category in NosmaiFilterCategory.values) {
       organized[category] = [];
     }
-
+    
     // Organize filters
     for (final filter in allFilters) {
       NosmaiFilterCategory category = NosmaiFilterCategory.unknown;
-
+      
       if (filter is NosmaiLocalFilter) {
         category = filter.filterCategory;
       } else if (filter is NosmaiCloudFilter) {
         category = filter.filterCategory;
       }
-
+      
       organized[category]!.add(filter);
     }
-
+    
     return organized;
   }
 
@@ -561,6 +557,7 @@ class NosmaiFlutter {
     return await NosmaiFlutterPlatform.instance.getCurrentRecordingDuration();
   }
 
+
   /// Get platform version (for debugging)
   Future<String?> getPlatformVersion() async {
     return await NosmaiFlutterPlatform.instance.getPlatformVersion();
@@ -591,7 +588,7 @@ class NosmaiFlutter {
 
   /// Save image data to device gallery (iOS Photos app)
   ///
-  /// [imageData] - Raw image data as List<int>
+  /// [imageData] - Raw image data as List&lt;int&gt;
   /// [name] - Optional name for the saved image
   /// Returns a map with success status and file path
   Future<Map<String, dynamic>> saveImageToGallery(List<int> imageData,
@@ -668,7 +665,7 @@ class NosmaiFlutter {
     _downloadProgressController?.close();
     _stateController?.close();
     _recordingProgressController?.close();
-
+    
     // Clear references
     _errorController = null;
     _downloadProgressController = null;
@@ -772,13 +769,9 @@ class NosmaiFlutter {
   /// [red] - Red channel adjustment (typically 0.0 to 2.0)
   /// [green] - Green channel adjustment (typically 0.0 to 2.0)
   /// [blue] - Blue channel adjustment (typically 0.0 to 2.0)
-  Future<void> applyRGBFilter(
-      {required double red,
-      required double green,
-      required double blue}) async {
+  Future<void> applyRGBFilter({required double red, required double green, required double blue}) async {
     _checkInitialized();
-    await NosmaiFlutterPlatform.instance
-        .applyRGBFilter(red: red, green: green, blue: blue);
+    await NosmaiFlutterPlatform.instance.applyRGBFilter(red: red, green: green, blue: blue);
   }
 
   /// Apply skin smoothing filter
@@ -840,8 +833,7 @@ class NosmaiFlutter {
   /// [level] - Blend level (0.0 to 1.0)
   Future<void> applyMakeupBlendLevel(String filterName, double level) async {
     _checkInitialized();
-    await NosmaiFlutterPlatform.instance
-        .applyMakeupBlendLevel(filterName, level);
+    await NosmaiFlutterPlatform.instance.applyMakeupBlendLevel(filterName, level);
   }
 
   /// Apply grayscale filter
@@ -858,16 +850,16 @@ class NosmaiFlutter {
     await NosmaiFlutterPlatform.instance.applyHue(hueAngle);
   }
 
+
   /// Apply white balance filter
   ///
   /// [temperature] - Color temperature (2000-8000, where 5000 is normal)
   /// [tint] - Tint adjustment (typically -100 to 100)
-  Future<void> applyWhiteBalance(
-      {required double temperature, required double tint}) async {
+  Future<void> applyWhiteBalance({required double temperature, required double tint}) async {
     _checkInitialized();
-    await NosmaiFlutterPlatform.instance
-        .applyWhiteBalance(temperature: temperature, tint: tint);
+    await NosmaiFlutterPlatform.instance.applyWhiteBalance(temperature: temperature, tint: tint);
   }
+
 
   /// Adjust HSB (Hue, Saturation, Brightness)
   ///
@@ -875,13 +867,9 @@ class NosmaiFlutter {
   /// [saturation] - Saturation level (0.0 to 2.0, where 1.0 is normal)
   /// [brightness] - Brightness level (0.0 to 2.0, where 1.0 is normal)
   /// Note: These adjustments are additive. Use resetHSBFilter() to start fresh.
-  Future<void> adjustHSB(
-      {required double hue,
-      required double saturation,
-      required double brightness}) async {
+  Future<void> adjustHSB({required double hue, required double saturation, required double brightness}) async {
     _checkInitialized();
-    await NosmaiFlutterPlatform.instance
-        .adjustHSB(hue: hue, saturation: saturation, brightness: brightness);
+    await NosmaiFlutterPlatform.instance.adjustHSB(hue: hue, saturation: saturation, brightness: brightness);
   }
 
   /// Reset HSB filter to default values

@@ -79,14 +79,14 @@ class HomePage extends StatelessWidget {
                     gradient: LinearGradient(
                       colors: [
                         const Color(0xFF6C5CE7),
-                        const Color(0xFF6C5CE7).withOpacity(0.6),
+                        const Color(0xFF6C5CE7).withValues(alpha: 0.6),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF6C5CE7).withOpacity(0.3),
+                        color: const Color(0xFF6C5CE7).withValues(alpha: 0.3),
                         blurRadius: 30,
                         spreadRadius: 5,
                       ),
@@ -119,7 +119,7 @@ class HomePage extends StatelessWidget {
                   'Professional filters & effects',
                   style: TextStyle(
                     fontSize: isSmallScreen ? 14 : 16,
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.white.withValues(alpha: 0.6),
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -147,7 +147,7 @@ class HomePage extends StatelessWidget {
                       gradient: LinearGradient(
                         colors: [
                           const Color(0xFF6C5CE7),
-                          const Color(0xFF6C5CE7).withOpacity(0.8),
+                          const Color(0xFF6C5CE7).withValues(alpha: 0.8),
                         ],
                         begin: Alignment.centerLeft,
                         end: Alignment.centerRight,
@@ -155,7 +155,7 @@ class HomePage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(30),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF6C5CE7).withOpacity(0.4),
+                          color: const Color(0xFF6C5CE7).withValues(alpha: 0.4),
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                         ),
@@ -242,7 +242,7 @@ class HomePage extends StatelessWidget {
                   'Version 1.0.0',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withValues(alpha: 0.3),
                   ),
                 ),
 
@@ -265,10 +265,10 @@ class HomePage extends StatelessWidget {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
           width: 1,
         ),
       ),
@@ -283,7 +283,7 @@ class HomePage extends StatelessWidget {
               width: isVerySmallScreen ? 24 : (isSmallScreen ? 28 : 36),
               height: isVerySmallScreen ? 24 : (isSmallScreen ? 28 : 36),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
+                color: color.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -310,7 +310,7 @@ class HomePage extends StatelessWidget {
               child: Text(
                 subtitle,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                   fontSize: isVerySmallScreen ? 8 : (isSmallScreen ? 9 : 11),
                 ),
                 overflow: TextOverflow.ellipsis,

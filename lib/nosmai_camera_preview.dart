@@ -26,26 +26,26 @@ class NosmaiCameraPreview extends StatefulWidget {
 /// Camera preview controller for programmatic control
 class NosmaiCameraPreviewController {
   _NosmaiCameraPreviewState? _state;
-
+  
   void _attach(_NosmaiCameraPreviewState state) {
     _state = state;
   }
-
+  
   void _detach() {
     _state = null;
   }
-
+  
   /// Manually reinitialize the camera preview
   Future<void> reinitialize() async {
     await _state?.reinitialize();
   }
-
+  
   /// Check if camera is currently initializing
   bool get isInitializing => _state?._isInitializing ?? false;
-
+  
   /// Check if camera is initialized
   bool get isInitialized => _state?._isInitialized ?? false;
-
+  
   /// Get current error if any
   String? get currentError => _state?._initError;
 }
@@ -62,12 +62,12 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     super.initState();
     _nosmaiFlutter = NosmaiFlutter.instance;
     WidgetsBinding.instance.addObserver(this);
-
+    
     // Attach controller if provided
     widget.controller?._attach(this);
-
+    
     // Note: Using simplified state management without complex callbacks
-
+    
     _initializeCamera();
   }
 
@@ -75,9 +75,9 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
   void dispose() {
     // Detach controller
     widget.controller?._detach();
-
+    
     // Cleanup - using simplified approach
-
+    
     WidgetsBinding.instance.removeObserver(this);
     _cleanupCameraOnDispose();
     super.dispose();
@@ -128,9 +128,11 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
       await _nosmaiFlutter.configureCamera(
         position: NosmaiCameraPosition.front,
       );
+      
 
       // Start processing
       await _nosmaiFlutter.startProcessing();
+      
 
       // Add a small delay to allow the platform view to attach
       await Future.delayed(const Duration(milliseconds: 500));
@@ -187,10 +189,10 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
   Future<void> _cleanupCamera() async {
     try {
       debugPrint('🧹 Starting camera cleanup...');
-
+      
       // Only stop processing and detach view - DO NOT cleanup SDK
       // The SDK should remain initialized for next use
-
+      
       // Try to stop processing if active
       if (_nosmaiFlutter.isProcessing) {
         try {
@@ -200,7 +202,7 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
           debugPrint('⚠️ Stop processing warning: $e');
         }
       }
-
+      
       // Try to detach camera view
       try {
         await _nosmaiFlutter.detachCameraView();
@@ -208,10 +210,10 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
       } catch (e) {
         debugPrint('⚠️ Detach view warning: $e');
       }
-
+      
       // Add delay to ensure cleanup completes
       await Future.delayed(const Duration(milliseconds: 300));
-
+      
       // Only update state if widget is still mounted
       if (mounted) {
         setState(() {
@@ -219,7 +221,7 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
           _isInitializing = false;
         });
       }
-
+      
       debugPrint('✅ Camera cleanup completed - SDK remains initialized');
     } catch (e) {
       debugPrint('⚠️ Error during camera cleanup: $e');
@@ -237,10 +239,10 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
   Future<void> _cleanupCameraOnDispose() async {
     try {
       debugPrint('🧹 Starting camera cleanup on dispose...');
-
+      
       // Only stop processing and detach view - DO NOT cleanup SDK
       // The SDK should remain initialized for next use
-
+      
       // Try to stop processing if active
       if (_nosmaiFlutter.isProcessing) {
         try {
@@ -250,7 +252,7 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
           debugPrint('⚠️ Stop processing warning on dispose: $e');
         }
       }
-
+      
       // Try to detach camera view
       try {
         await _nosmaiFlutter.detachCameraView();
@@ -258,9 +260,8 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
       } catch (e) {
         debugPrint('⚠️ Detach view warning on dispose: $e');
       }
-
-      debugPrint(
-          '✅ Camera cleanup on dispose completed - SDK remains initialized');
+      
+      debugPrint('✅ Camera cleanup on dispose completed - SDK remains initialized');
     } catch (e) {
       debugPrint('⚠️ Error during camera cleanup on dispose: $e');
     }
@@ -269,13 +270,13 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
   /// Manually reinitialize the camera (useful for error recovery)
   Future<void> reinitialize() async {
     debugPrint('🔄 Manual camera reinitialize requested');
-
+    
     // Force cleanup
     await _cleanupCamera();
-
+    
     // Longer delay to ensure everything is cleaned up
     await Future.delayed(const Duration(milliseconds: 1000));
-
+    
     // Force reset all state
     if (mounted) {
       setState(() {
@@ -284,7 +285,7 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
         _initError = null;
       });
     }
-
+    
     // Re-initialize
     await _initializeCamera();
   }
@@ -354,9 +355,8 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
 
     // Show loading state
     if (_isInitializing || !_isInitialized) {
-      String statusText =
-          _isInitializing ? 'Initializing camera...' : 'Camera loading...';
-
+      String statusText = _isInitializing ? 'Initializing camera...' : 'Camera loading...';
+      
       return Container(
         width: widget.width,
         height: widget.height,

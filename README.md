@@ -24,8 +24,8 @@ A Flutter plugin for integrating the Nosmai SDK - Real-time video filtering and 
 ## Requirements
 
 - **iOS**: 14.0+
-- **Flutter**: 3.0.0+
-- **Dart**: 2.17.0+
+- **Flutter**: 3.22.0+
+- **Dart**: 3.0.0+
 
 ## Installation
 
@@ -40,14 +40,77 @@ dependencies:
 
 ### iOS Setup
 
-1. **Add camera permissions** to your `ios/Runner/Info.plist`:
+1. **Update your `ios/Podfile`** to set minimum iOS version and enable required permissions:
+
+```ruby
+platform :ios, '14.0'
+
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. Run 'flutter pub get' first."
+  end
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks! :linkage => :static
+  use_modular_headers!
+
+  flutter_install_all_ios_pods(File.dirname(File.realpath(__FILE__)))
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+        '$(inherited)',
+        
+        ## dart: PermissionGroup.camera
+        'PERMISSION_CAMERA=1',
+        
+        ## dart: PermissionGroup.microphone
+        'PERMISSION_MICROPHONE=1',
+        
+        ## dart: PermissionGroup.photos
+        'PERMISSION_PHOTOS=1',
+      ]
+    end
+  end
+end
+```
+
+2. **Add camera permissions** to your `ios/Runner/Info.plist`:
 
 ```xml
 <key>NSCameraUsageDescription</key>
 <string>This app uses the camera to apply real-time filters and beauty effects.</string>
 <key>NSMicrophoneUsageDescription</key>
 <string>This app may use the microphone for video recording with filters.</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>This app saves photos and videos to your photo library.</string>
+<key>NSPhotoLibraryAddUsageDescription</key>
+<string>This app saves photos and videos to your photo library.</string>
 ```
+
+3. **Run pod install** to update dependencies:
+
+```bash
+cd ios && pod install
+```
+
+> **Important**: The camera, microphone, and photo library permissions are required for the plugin to function properly. Without these permissions, the app will crash when trying to access the camera or save media to the gallery.
 
 ## Usage
 

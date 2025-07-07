@@ -1,54 +1,51 @@
-// ignore_for_file: unused_local_variable
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'nosmai_flutter_platform_interface.dart';
 import 'nosmai_types.dart';
 
-/// Internal camera state notifier for communication between platform and widgets
-class _CameraStateNotifier {
-  static final _CameraStateNotifier _instance =
-      _CameraStateNotifier._internal();
-  static _CameraStateNotifier get instance => _instance;
-  _CameraStateNotifier._internal();
-
+/// Camera state notifier for communication between platform and widgets
+class CameraStateNotifier {
+  static final CameraStateNotifier _instance = CameraStateNotifier._internal();
+  static CameraStateNotifier get instance => _instance;
+  CameraStateNotifier._internal();
+  
   final List<Function()> _attachedCallbacks = [];
   final List<Function()> _detachedCallbacks = [];
   final List<Function()> _readyCallbacks = [];
   final List<Function()> _processingStoppedCallbacks = [];
-
+  
   void addAttachedCallback(Function() callback) {
     _attachedCallbacks.add(callback);
   }
-
+  
   void removeAttachedCallback(Function() callback) {
     _attachedCallbacks.remove(callback);
   }
-
+  
   void addDetachedCallback(Function() callback) {
     _detachedCallbacks.add(callback);
   }
-
+  
   void removeDetachedCallback(Function() callback) {
     _detachedCallbacks.remove(callback);
   }
-
+  
   void addReadyCallback(Function() callback) {
     _readyCallbacks.add(callback);
   }
-
+  
   void removeReadyCallback(Function() callback) {
     _readyCallbacks.remove(callback);
   }
-
+  
   void addProcessingStoppedCallback(Function() callback) {
     _processingStoppedCallbacks.add(callback);
   }
-
+  
   void removeProcessingStoppedCallback(Function() callback) {
     _processingStoppedCallbacks.remove(callback);
   }
-
+  
   void notifyCameraAttached() {
     debugPrint('📷 Camera attached notification received');
     for (final callback in _attachedCallbacks) {
@@ -59,7 +56,7 @@ class _CameraStateNotifier {
       }
     }
   }
-
+  
   void notifyCameraDetached() {
     debugPrint('📷 Camera detached notification received');
     for (final callback in _detachedCallbacks) {
@@ -70,7 +67,7 @@ class _CameraStateNotifier {
       }
     }
   }
-
+  
   void notifyCameraReady() {
     debugPrint('📷 Camera ready notification received');
     for (final callback in _readyCallbacks) {
@@ -81,7 +78,7 @@ class _CameraStateNotifier {
       }
     }
   }
-
+  
   void notifyCameraProcessingStopped() {
     debugPrint('📷 Camera processing stopped notification received');
     for (final callback in _processingStoppedCallbacks) {
@@ -94,17 +91,12 @@ class _CameraStateNotifier {
   }
 }
 
-/// Expose camera state notifier for use in other files
-class CameraStateNotifier {
-  // ignore: library_private_types_in_public_api
-  static _CameraStateNotifier get instance => _CameraStateNotifier.instance;
-}
 
 /// An implementation of [NosmaiFlutterPlatform] that uses method channels.
 class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   /// The method channel used to interact with the native platform.
   @visibleForTesting
-  final methodChannel = const MethodChannel('nosmai_camera_sdk');
+  final methodChannel = const MethodChannel('nosmai_flutter');
 
   /// Constructor that sets up method call handler for callbacks
   MethodChannelNosmaiFlutter() {
@@ -115,50 +107,43 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   Future<void> _handleMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'onError':
-        final Map<String, dynamic> args =
-            Map<String, dynamic>.from(call.arguments);
+        final Map<String, dynamic> args = Map<String, dynamic>.from(call.arguments);
         NosmaiError.fromMap(args);
         // This will be handled by the main NosmaiFlutter class
         break;
       case 'onDownloadProgress':
-        final Map<String, dynamic> args =
-            Map<String, dynamic>.from(call.arguments);
+        final Map<String, dynamic> args = Map<String, dynamic>.from(call.arguments);
         NosmaiDownloadProgress.fromMap(args);
         // This will be handled by the main NosmaiFlutter class
         break;
       case 'onRecordingProgress':
-        final Map<String, dynamic> args =
-            Map<String, dynamic>.from(call.arguments);
         // This will be handled by the main NosmaiFlutter class
         break;
       case 'onStateChanged':
-        final Map<String, dynamic> args =
-            Map<String, dynamic>.from(call.arguments);
         // Handle SDK state changes
         break;
       case 'onCameraAttached':
         // Camera successfully attached - notify camera preview widgets
-        _CameraStateNotifier.instance.notifyCameraAttached();
+        CameraStateNotifier.instance.notifyCameraAttached();
         break;
       case 'onCameraDetached':
         // Camera detached - notify camera preview widgets
-        _CameraStateNotifier.instance.notifyCameraDetached();
+        CameraStateNotifier.instance.notifyCameraDetached();
         break;
       case 'onCameraReady':
         // Camera is ready for processing
-        _CameraStateNotifier.instance.notifyCameraReady();
+        CameraStateNotifier.instance.notifyCameraReady();
         break;
       case 'onCameraProcessingStopped':
         // Camera processing stopped
-        _CameraStateNotifier.instance.notifyCameraProcessingStopped();
+        CameraStateNotifier.instance.notifyCameraProcessingStopped();
         break;
     }
   }
 
   @override
   Future<String?> getPlatformVersion() async {
-    final version =
-        await methodChannel.invokeMethod<String>('getPlatformVersion');
+    final version = await methodChannel.invokeMethod<String>('getPlatformVersion');
     return version;
   }
 
@@ -211,11 +196,17 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     }
   }
 
+
+
+
+
+
+
+
   @override
   Future<bool> loadNosmaiFilter(String filePath) async {
     try {
-      final result =
-          await methodChannel.invokeMethod<bool>('loadNosmaiFilter', {
+      final result = await methodChannel.invokeMethod<bool>('loadNosmaiFilter', {
         'filePath': filePath,
       });
       return result ?? false;
@@ -295,8 +286,7 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   @override
   Future<List<dynamic>> getCloudFilters() async {
     try {
-      final result =
-          await methodChannel.invokeMethod<List<dynamic>>('getCloudFilters');
+      final result = await methodChannel.invokeMethod<List<dynamic>>('getCloudFilters');
       return result ?? [];
     } catch (e) {
       debugPrint('Error getting cloud filters: $e');
@@ -307,8 +297,7 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   @override
   Future<Map<String, dynamic>> downloadCloudFilter(String filterId) async {
     try {
-      final result = await methodChannel
-          .invokeMethod<Map<dynamic, dynamic>>('downloadCloudFilter', {
+      final result = await methodChannel.invokeMethod<Map<dynamic, dynamic>>('downloadCloudFilter', {
         'filterId': filterId,
       });
       return Map<String, dynamic>.from(result ?? {});
@@ -321,8 +310,7 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   @override
   Future<List<dynamic>> getLocalFilters() async {
     try {
-      final result =
-          await methodChannel.invokeMethod<List<dynamic>>('getLocalFilters');
+      final result = await methodChannel.invokeMethod<List<dynamic>>('getLocalFilters');
       return result ?? [];
     } catch (e) {
       debugPrint('Error getting local filters: $e');
@@ -333,8 +321,7 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   @override
   Future<List<dynamic>> getFilters() async {
     try {
-      final result =
-          await methodChannel.invokeMethod<List<dynamic>>('getFilters');
+      final result = await methodChannel.invokeMethod<List<dynamic>>('getFilters');
       return result ?? [];
     } catch (e) {
       debugPrint('Error getting filters: $e');
@@ -345,8 +332,7 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   @override
   Future<List<dynamic>> getEffectParameters() async {
     try {
-      final result = await methodChannel
-          .invokeMethod<List<dynamic>>('getEffectParameters');
+      final result = await methodChannel.invokeMethod<List<dynamic>>('getEffectParameters');
       return result ?? [];
     } catch (e) {
       debugPrint('Error getting effect parameters: $e');
@@ -357,8 +343,7 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   @override
   Future<bool> setEffectParameter(String parameterName, double value) async {
     try {
-      final result =
-          await methodChannel.invokeMethod<bool>('setEffectParameter', {
+      final result = await methodChannel.invokeMethod<bool>('setEffectParameter', {
         'parameterName': parameterName,
         'value': value,
       });
@@ -384,8 +369,7 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   @override
   Future<Map<String, dynamic>> stopRecording() async {
     try {
-      final result = await methodChannel
-          .invokeMethod<Map<dynamic, dynamic>>('stopRecording');
+      final result = await methodChannel.invokeMethod<Map<dynamic, dynamic>>('stopRecording');
       return Map<String, dynamic>.from(result ?? {});
     } catch (e) {
       debugPrint('Error stopping recording: $e');
@@ -407,8 +391,7 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   @override
   Future<double> getCurrentRecordingDuration() async {
     try {
-      final result = await methodChannel
-          .invokeMethod<double>('getCurrentRecordingDuration');
+      final result = await methodChannel.invokeMethod<double>('getCurrentRecordingDuration');
       return result ?? 0.0;
     } catch (e) {
       debugPrint('Error getting recording duration: $e');
@@ -416,11 +399,11 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     }
   }
 
+
   @override
   Future<Map<String, dynamic>> capturePhoto() async {
     try {
-      final result = await methodChannel
-          .invokeMethod<Map<dynamic, dynamic>>('capturePhoto');
+      final result = await methodChannel.invokeMethod<Map<dynamic, dynamic>>('capturePhoto');
       return Map<String, dynamic>.from(result ?? {});
     } catch (e) {
       debugPrint('Error capturing photo: $e');
@@ -429,11 +412,9 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   }
 
   @override
-  Future<Map<String, dynamic>> saveImageToGallery(List<int> imageData,
-      {String? name}) async {
+  Future<Map<String, dynamic>> saveImageToGallery(List<int> imageData, {String? name}) async {
     try {
-      final result = await methodChannel
-          .invokeMethod<Map<dynamic, dynamic>>('saveImageToGallery', {
+      final result = await methodChannel.invokeMethod<Map<dynamic, dynamic>>('saveImageToGallery', {
         'imageData': Uint8List.fromList(imageData),
         'name': name ?? 'nosmai_photo_${DateTime.now().millisecondsSinceEpoch}',
       });
@@ -445,11 +426,9 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   }
 
   @override
-  Future<Map<String, dynamic>> saveVideoToGallery(String videoPath,
-      {String? name}) async {
+  Future<Map<String, dynamic>> saveVideoToGallery(String videoPath, {String? name}) async {
     try {
-      final result = await methodChannel
-          .invokeMethod<Map<dynamic, dynamic>>('saveVideoToGallery', {
+      final result = await methodChannel.invokeMethod<Map<dynamic, dynamic>>('saveVideoToGallery', {
         'videoPath': videoPath,
         'name': name ?? 'nosmai_video_${DateTime.now().millisecondsSinceEpoch}',
       });
@@ -506,10 +485,7 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   }
 
   @override
-  Future<void> applyRGBFilter(
-      {required double red,
-      required double green,
-      required double blue}) async {
+  Future<void> applyRGBFilter({required double red, required double green, required double blue}) async {
     try {
       await methodChannel.invokeMethod('applyRGBFilter', {
         'red': red,
@@ -629,9 +605,9 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     }
   }
 
+
   @override
-  Future<void> applyWhiteBalance(
-      {required double temperature, required double tint}) async {
+  Future<void> applyWhiteBalance({required double temperature, required double tint}) async {
     try {
       await methodChannel.invokeMethod('applyWhiteBalance', {
         'temperature': temperature,
@@ -643,11 +619,9 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     }
   }
 
+
   @override
-  Future<void> adjustHSB(
-      {required double hue,
-      required double saturation,
-      required double brightness}) async {
+  Future<void> adjustHSB({required double hue, required double saturation, required double brightness}) async {
     try {
       await methodChannel.invokeMethod('adjustHSB', {
         'hue': hue,
@@ -695,8 +669,7 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   @override
   Future<List<dynamic>> getInitialFilters() async {
     try {
-      final result =
-          await methodChannel.invokeMethod<List<dynamic>>('getInitialFilters');
+      final result = await methodChannel.invokeMethod<List<dynamic>>('getInitialFilters');
       return result ?? [];
     } catch (e) {
       debugPrint('Error getting initial filters: $e');
@@ -717,8 +690,7 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   @override
   Future<bool> isBeautyEffectEnabled() async {
     try {
-      final result =
-          await methodChannel.invokeMethod<bool>('isBeautyEffectEnabled');
+      final result = await methodChannel.invokeMethod<bool>('isBeautyEffectEnabled');
       return result ?? false;
     } catch (e) {
       debugPrint('Error checking beauty effect availability: $e');
@@ -729,8 +701,7 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   @override
   Future<bool> isCloudFilterEnabled() async {
     try {
-      final result =
-          await methodChannel.invokeMethod<bool>('isCloudFilterEnabled');
+      final result = await methodChannel.invokeMethod<bool>('isCloudFilterEnabled');
       return result ?? false;
     } catch (e) {
       debugPrint('Error checking cloud filter availability: $e');

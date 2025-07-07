@@ -173,12 +173,12 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
         decoration: BoxDecoration(
           color: isSelected
               ? const Color(0xFF6C5CE7)
-              : Colors.white.withOpacity(0.1),
+              : Colors.white.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
                 ? const Color(0xFF6C5CE7)
-                : Colors.white.withOpacity(0.3),
+                : Colors.white.withValues(alpha: 0.3),
           ),
         ),
         child: Row(
@@ -238,7 +238,7 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
               activeTrackColor: const Color(0xFF6C5CE7),
               inactiveTrackColor: Colors.white30,
               thumbColor: const Color(0xFF6C5CE7),
-              overlayColor: const Color(0xFF6C5CE7).withOpacity(0.3),
+              overlayColor: const Color(0xFF6C5CE7).withValues(alpha: 0.3),
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
               trackHeight: 3,
             ),
@@ -473,7 +473,7 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withOpacity(0.8),
+                    Colors.black.withValues(alpha: 0.8),
                   ],
                 ),
               ),
