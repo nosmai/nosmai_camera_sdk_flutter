@@ -2,15 +2,15 @@ import 'package:flutter/widgets.dart';
 import 'nosmai_flutter.dart';
 
 /// Simple mixin for managing Nosmai camera lifecycle in Flutter screens
-/// 
+///
 /// This mixin handles proper camera initialization and cleanup.
 /// Use this mixin in your camera screen's State class to ensure smooth camera operations.
-/// 
+///
 /// Example usage:
 /// ```dart
-/// class CameraScreenState extends State<CameraScreen> 
+/// class CameraScreenState extends State<CameraScreen>
 ///     with NosmaiCameraLifecycleMixin {
-///   
+///
 ///   @override
 ///   Widget build(BuildContext context) {
 ///     return Scaffold(
@@ -40,7 +40,7 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
     super.initState();
     _nosmaiFlutter = NosmaiFlutter.instance;
     _isScreenActive = true;
-    
+
     debugPrint('📱 Camera screen initialized');
   }
 
@@ -63,22 +63,22 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
   /// Call this method before navigating away from the camera screen
   Future<void> cleanupBeforeNavigation() async {
     if (!_isScreenActive) return;
-    
+
     _isScreenActive = false;
-    
+
     debugPrint('🔄 Cleanup before navigation');
-    
+
     try {
       // Detach camera view gracefully
       if (_nosmaiFlutter.isInitialized) {
         await _nosmaiFlutter.detachCameraView();
-        
+
         // Stop processing if still active
         if (_nosmaiFlutter.isProcessing) {
           await _nosmaiFlutter.stopProcessing();
         }
       }
-      
+
       debugPrint('✅ Navigation cleanup completed');
     } catch (e) {
       debugPrint('⚠️ Error during navigation cleanup: $e');
@@ -88,22 +88,22 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
   /// Cleanup when screen is disposed
   void _cleanupOnDispose() async {
     if (!_isScreenActive) return;
-    
+
     _isScreenActive = false;
-    
+
     debugPrint('🗑️ Cleaning up camera screen resources');
-    
+
     try {
       // Detach camera view gracefully
       if (_nosmaiFlutter.isInitialized) {
         await _nosmaiFlutter.detachCameraView();
-        
+
         // Stop processing if still active
         if (_nosmaiFlutter.isProcessing) {
           await _nosmaiFlutter.stopProcessing();
         }
       }
-      
+
       debugPrint('✅ Camera screen cleanup completed');
     } catch (e) {
       debugPrint('⚠️ Error during camera screen cleanup: $e');

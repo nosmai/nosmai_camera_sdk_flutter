@@ -45,13 +45,6 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
     throw UnimplementedError('stopProcessing() has not been implemented.');
   }
 
-
-
-
-
-
-
-
   /// Load a Nosmai filter file
   Future<bool> loadNosmaiFilter(String filePath) {
     throw UnimplementedError('loadNosmaiFilter() has not been implemented.');
@@ -64,7 +57,8 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
 
   /// Enable or disable face detection
   Future<void> setFaceDetectionEnabled(bool enable) {
-    throw UnimplementedError('setFaceDetectionEnabled() has not been implemented.');
+    throw UnimplementedError(
+        'setFaceDetectionEnabled() has not been implemented.');
   }
 
   /// Remove all applied filters
@@ -130,120 +124,132 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
   }
 
   Future<double> getCurrentRecordingDuration() {
-    throw UnimplementedError('getCurrentRecordingDuration() has not been implemented.');
+    throw UnimplementedError(
+        'getCurrentRecordingDuration() has not been implemented.');
   }
-
 
   /// Capture photo with applied filters
   Future<Map<String, dynamic>> capturePhoto() {
     throw UnimplementedError('capturePhoto() has not been implemented.');
   }
-  
+
   /// Save image data to device gallery
-  Future<Map<String, dynamic>> saveImageToGallery(List<int> imageData, {String? name}) {
+  Future<Map<String, dynamic>> saveImageToGallery(List<int> imageData,
+      {String? name}) {
     throw UnimplementedError('saveImageToGallery() has not been implemented.');
   }
-  
+
   /// Save video file to device gallery
-  Future<Map<String, dynamic>> saveVideoToGallery(String videoPath, {String? name}) {
+  Future<Map<String, dynamic>> saveVideoToGallery(String videoPath,
+      {String? name}) {
     throw UnimplementedError('saveVideoToGallery() has not been implemented.');
   }
-  
+
   /// Clear filter cache to force refresh
   Future<void> clearFilterCache() {
     throw UnimplementedError('clearFilterCache() has not been implemented.');
   }
-  
+
   /// Detach camera from current view (for navigation cleanup)
   Future<void> detachCameraView() {
     throw UnimplementedError('detachCameraView() has not been implemented.');
   }
-  
+
   // Built-in Filter Methods
   Future<void> applyBrightnessFilter(double brightness) {
-    throw UnimplementedError('applyBrightnessFilter() has not been implemented.');
+    throw UnimplementedError(
+        'applyBrightnessFilter() has not been implemented.');
   }
-  
+
   Future<void> applyContrastFilter(double contrast) {
     throw UnimplementedError('applyContrastFilter() has not been implemented.');
   }
-  
-  Future<void> applyRGBFilter({required double red, required double green, required double blue}) {
+
+  Future<void> applyRGBFilter(
+      {required double red, required double green, required double blue}) {
     throw UnimplementedError('applyRGBFilter() has not been implemented.');
   }
-  
+
   Future<void> applySkinSmoothing(double level) {
     throw UnimplementedError('applySkinSmoothing() has not been implemented.');
   }
-  
+
   Future<void> applySkinWhitening(double level) {
     throw UnimplementedError('applySkinWhitening() has not been implemented.');
   }
-  
+
   Future<void> applyFaceSlimming(double level) {
     throw UnimplementedError('applyFaceSlimming() has not been implemented.');
   }
-  
+
   Future<void> applyEyeEnlargement(double level) {
     throw UnimplementedError('applyEyeEnlargement() has not been implemented.');
   }
-  
+
   Future<void> applyNoseSize(double level) {
     throw UnimplementedError('applyNoseSize() has not been implemented.');
   }
-  
+
   Future<void> applySharpening(double level) {
     throw UnimplementedError('applySharpening() has not been implemented.');
   }
-  
+
   Future<void> applyMakeupBlendLevel(String filterName, double level) {
-    throw UnimplementedError('applyMakeupBlendLevel() has not been implemented.');
+    throw UnimplementedError(
+        'applyMakeupBlendLevel() has not been implemented.');
   }
-  
+
   Future<void> applyGrayscaleFilter() {
-    throw UnimplementedError('applyGrayscaleFilter() has not been implemented.');
+    throw UnimplementedError(
+        'applyGrayscaleFilter() has not been implemented.');
   }
-  
+
   Future<void> applyHue(double hueAngle) {
     throw UnimplementedError('applyHue() has not been implemented.');
   }
-  
-  
-  Future<void> applyWhiteBalance({required double temperature, required double tint}) {
+
+  Future<void> applyWhiteBalance(
+      {required double temperature, required double tint}) {
     throw UnimplementedError('applyWhiteBalance() has not been implemented.');
   }
-  
-  
-  Future<void> adjustHSB({required double hue, required double saturation, required double brightness}) {
+
+  Future<void> adjustHSB(
+      {required double hue,
+      required double saturation,
+      required double brightness}) {
     throw UnimplementedError('adjustHSB() has not been implemented.');
   }
-  
+
   Future<void> resetHSBFilter() {
     throw UnimplementedError('resetHSBFilter() has not been implemented.');
   }
-  
+
   Future<void> removeBuiltInFilters() {
-    throw UnimplementedError('removeBuiltInFilters() has not been implemented.');
+    throw UnimplementedError(
+        'removeBuiltInFilters() has not been implemented.');
   }
-  
+
   Future<void> removeBuiltInFilterByName(String filterName) {
-    throw UnimplementedError('removeBuiltInFilterByName() has not been implemented.');
+    throw UnimplementedError(
+        'removeBuiltInFilterByName() has not been implemented.');
   }
-  
+
   Future<List<dynamic>> getInitialFilters() {
     throw UnimplementedError('getInitialFilters() has not been implemented.');
   }
-  
+
   Future<void> fetchCloudFilters() {
     throw UnimplementedError('fetchCloudFilters() has not been implemented.');
   }
-  
+
   // License feature availability methods
   Future<bool> isBeautyEffectEnabled() {
-    throw UnimplementedError('isBeautyEffectEnabled() has not been implemented.');
+    throw UnimplementedError(
+        'isBeautyEffectEnabled() has not been implemented.');
   }
-  
+
   Future<bool> isCloudFilterEnabled() {
-    throw UnimplementedError('isCloudFilterEnabled() has not been implemented.');
+    throw UnimplementedError(
+        'isCloudFilterEnabled() has not been implemented.');
   }
 }

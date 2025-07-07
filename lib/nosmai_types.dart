@@ -8,23 +8,17 @@ enum NosmaiCameraPosition {
 
 /// Filter types supported by Nosmai SDK
 enum NosmaiFilterType {
-  nosmai,  // Custom .nosmai effect packages
-  cloud,   // Cloud-based filters
+  nosmai, // Custom .nosmai effect packages
+  cloud, // Cloud-based filters
 }
 
 /// Filter category types for metadata-based categorization
 enum NosmaiFilterCategory {
-  beauty,  // Beauty enhancement filters (lipstick, face slimming, etc.)
-  effect,  // Creative/artistic effects (glitch, holographic, etc.)
-  filter,  // Standard filters (color adjustments, basic effects, etc.)
+  beauty, // Beauty enhancement filters (lipstick, face slimming, etc.)
+  effect, // Creative/artistic effects (glitch, holographic, etc.)
+  filter, // Standard filters (color adjustments, basic effects, etc.)
   unknown, // Unknown or uncategorized filters
 }
-
-
-
-
-
-
 
 /// Cloud filter information
 class NosmaiCloudFilter {
@@ -55,21 +49,24 @@ class NosmaiCloudFilter {
   factory NosmaiCloudFilter.fromMap(Map<String, dynamic> map) {
     // Handle localPath - check for NSNull and convert properly, fallback to 'path' field
     String? localPath;
-    final localPathValue = map['localPath'] ?? map['path']; // Fallback to 'path' field
+    final localPathValue =
+        map['localPath'] ?? map['path']; // Fallback to 'path' field
     if (localPathValue != null && localPathValue.toString() != 'null') {
       localPath = localPathValue.toString();
     }
-    
-    // Handle filterId - use 'name' as fallback for cached filters  
-    String filterId = map['filterId']?.toString() ?? 
-                     map['id']?.toString() ?? 
-                     map['name']?.toString() ?? '';
-    
+
+    // Handle filterId - use 'name' as fallback for cached filters
+    String filterId = map['filterId']?.toString() ??
+        map['id']?.toString() ??
+        map['name']?.toString() ??
+        '';
+
     // Parse filter category from metadata - match C++ CloudFilterInfo.filterCategory
     NosmaiFilterCategory filterCategory = NosmaiFilterCategory.unknown;
-    final filterCategoryString = map['filterCategory']?.toString().toLowerCase() ??
-                               map['category']?.toString().toLowerCase() ??
-                               map['filterType']?.toString().toLowerCase();
+    final filterCategoryString =
+        map['filterCategory']?.toString().toLowerCase() ??
+            map['category']?.toString().toLowerCase() ??
+            map['filterType']?.toString().toLowerCase();
     if (filterCategoryString != null) {
       switch (filterCategoryString) {
         case 'beauty':
@@ -83,16 +80,18 @@ class NosmaiCloudFilter {
           break;
       }
     }
-    
+
     return NosmaiCloudFilter(
       id: filterId,
       name: map['name']?.toString() ?? '',
-      displayName: map['displayName']?.toString() ?? map['name']?.toString() ?? '',
+      displayName:
+          map['displayName']?.toString() ?? map['name']?.toString() ?? '',
       isFree: map['isFree'] as bool? ?? false,
       isDownloaded: map['isDownloaded'] as bool? ?? false,
       localPath: localPath,
       fileSize: map['fileSize'] as int?,
-      previewUrl: map['previewUrl']?.toString() ?? map['thumbnailUrl']?.toString(),
+      previewUrl:
+          map['previewUrl']?.toString() ?? map['thumbnailUrl']?.toString(),
       category: map['category']?.toString(),
       filterCategory: filterCategory,
     );
@@ -149,7 +148,7 @@ class NosmaiLocalFilter {
           break;
       }
     }
-    
+
     return NosmaiLocalFilter(
       name: map['name']?.toString() ?? '',
       path: map['path']?.toString() ?? '',
@@ -308,8 +307,6 @@ class NosmaiRecordingProgress {
   }
 }
 
-
-
 /// SDK state enumeration
 enum NosmaiSdkState {
   uninitialized,
@@ -368,11 +365,11 @@ class NosmaiPhotoResult {
       final success = map['success'] as bool? ?? false;
       final imagePath = map['imagePath']?.toString();
       final error = map['error']?.toString();
-      
+
       // Handle both int and double types from iOS
       int? width;
       int? height;
-      
+
       if (map['width'] != null) {
         if (map['width'] is int) {
           width = map['width'] as int;
@@ -382,7 +379,7 @@ class NosmaiPhotoResult {
           width = int.tryParse(map['width'].toString());
         }
       }
-      
+
       if (map['height'] != null) {
         if (map['height'] is int) {
           height = map['height'] as int;
@@ -392,13 +389,13 @@ class NosmaiPhotoResult {
           height = int.tryParse(map['height'].toString());
         }
       }
-      
+
       List<int>? imageData;
       if (map['imageData'] != null) {
         try {
           // Handle different types of image data from native platforms
           final rawImageData = map['imageData'];
-          
+
           if (rawImageData is List<int>) {
             imageData = rawImageData;
           } else if (rawImageData is Uint8List) {
@@ -411,7 +408,7 @@ class NosmaiPhotoResult {
           imageData = null;
         }
       }
-      
+
       return NosmaiPhotoResult(
         success: success,
         imagePath: imagePath,
@@ -420,7 +417,6 @@ class NosmaiPhotoResult {
         width: width,
         height: height,
       );
-      
     } catch (e) {
       return NosmaiPhotoResult(
         success: false,
