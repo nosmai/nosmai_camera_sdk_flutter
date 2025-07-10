@@ -2,6 +2,9 @@
 #import "NosmaiCameraPreviewView.h"
 #import <nosmai/Nosmai.h>
 #import <Photos/Photos.h>
+#import <SystemConfiguration/SystemConfiguration.h>
+#import <sys/socket.h>
+#import <netinet/in.h>
 
 @interface NosmaiFlutterPlugin() <NosmaiDelegate, NosmaiCameraDelegate, NosmaiEffectsDelegate>
 @property(nonatomic, strong) FlutterMethodChannel* channel;
@@ -20,7 +23,7 @@
 
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
   FlutterMethodChannel* channel = [FlutterMethodChannel
-      methodChannelWithName:@"nosmai_flutter"
+      methodChannelWithName:@"nosmai_camera_sdk"
             binaryMessenger:[registrar messenger]];
   NosmaiFlutterPlugin* instance = [[NosmaiFlutterPlugin alloc] init];
   instance.channel = channel;
@@ -1172,6 +1175,13 @@
     return;
   }
   
+  // Check network connectivity before attempting cloud filter fetch
+  if (![self isNetworkAvailable]) {
+    NSLog(@"📡 Network not available, skipping cloud filter fetch");
+    result(nil);
+    return;
+  }
+  
   // Set delegate to receive filter updates
   [[NosmaiSDK sharedInstance] setDelegate:self];
   
@@ -1257,8 +1267,12 @@
     dispatch_async(dispatch_get_main_queue(), ^{
       result(sanitizedFilters ?: @[]);
       
-      // Also trigger cloud filter fetch for updates
-      [[NosmaiSDK sharedInstance] fetchCloudFilters];
+      // Only trigger cloud filter fetch if network is available
+      if ([self isNetworkAvailable]) {
+        [[NosmaiSDK sharedInstance] fetchCloudFilters];
+      } else {
+        NSLog(@"📡 Network not available, skipping background cloud filter fetch");
+      }
     });
   });
 }
@@ -2004,6 +2018,28 @@
       @"duration": @(duration)
     }];
   }
+}
+
+- (BOOL)isNetworkAvailable {
+    // Simple network availability check using SystemConfiguration
+    // This is fast and doesn't require actual network requests
+    struct sockaddr_in zeroAddress;
+    bzero(&zeroAddress, sizeof(zeroAddress));
+    zeroAddress.sin_len = sizeof(zeroAddress);
+    zeroAddress.sin_family = AF_INET;
+    
+    SCNetworkReachabilityRef reachability = SCNetworkReachabilityCreateWithAddress(kCFAllocatorDefault, (const struct sockaddr*)&zeroAddress);
+    
+    if (reachability != NULL) {
+        SCNetworkReachabilityFlags flags;
+        if (SCNetworkReachabilityGetFlags(reachability, &flags)) {
+            CFRelease(reachability);
+            return (flags & kSCNetworkReachabilityFlagsReachable) && !(flags & kSCNetworkReachabilityFlagsConnectionRequired);
+        }
+        CFRelease(reachability);
+    }
+    
+    return NO;
 }
 
 - (void)dealloc {

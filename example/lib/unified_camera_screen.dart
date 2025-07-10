@@ -434,7 +434,8 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                      side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.3)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -704,9 +705,8 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                 animation: _filterPanelController,
                 builder: (context, child) {
                   final screenHeight = MediaQuery.of(context).size.height;
-                  final panelHeight = screenHeight < 700 
-                      ? screenHeight * 0.4 
-                      : 300.0;
+                  final panelHeight =
+                      screenHeight < 700 ? screenHeight * 0.4 : 300.0;
                   return Transform.translate(
                     offset: Offset(
                         0, panelHeight * (1 - _filterPanelController.value)),
@@ -790,7 +790,8 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                                             shape: BoxShape.circle,
                                             color: _isRecording
                                                 ? Colors.red
-                                                : Colors.white.withValues(alpha: 0.3),
+                                                : Colors.white
+                                                    .withValues(alpha: 0.3),
                                           ),
                                           child: Icon(
                                             _isRecording
@@ -936,9 +937,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
 
   Widget _buildFilterPanel() {
     final screenHeight = MediaQuery.of(context).size.height;
-    final panelHeight = screenHeight < 700 
-        ? screenHeight * 0.4 
-        : 300.0;
+    final panelHeight = screenHeight < 700 ? screenHeight * 0.4 : 300.0;
 
     return Container(
       height: panelHeight,
@@ -1138,7 +1137,8 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                     activeTrackColor: const Color(0xFF6C5CE7),
                     inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
                     thumbColor: const Color(0xFF6C5CE7),
-                    overlayColor: const Color(0xFF6C5CE7).withValues(alpha: 0.3),
+                    overlayColor:
+                        const Color(0xFF6C5CE7).withValues(alpha: 0.3),
                     thumbShape:
                         const RoundSliderThumbShape(enabledThumbRadius: 6),
                     trackHeight: 3,

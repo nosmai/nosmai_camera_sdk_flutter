@@ -31,7 +31,6 @@ target 'Runner' do
   # ✅ ADD: Required for camera and video processing
   use_frameworks! :linkage => :static
   use_modular_headers!
-  # inhibit_all_warnings!
   
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   

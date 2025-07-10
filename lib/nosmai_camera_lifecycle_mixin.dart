@@ -1,5 +1,5 @@
 import 'package:flutter/widgets.dart';
-import 'nosmai_flutter.dart';
+import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
 
 /// Simple mixin for managing Nosmai camera lifecycle in Flutter screens
 ///

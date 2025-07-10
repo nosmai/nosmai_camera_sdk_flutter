@@ -1,6 +1,6 @@
-# nosmai_flutter_example
+# nosmai_camera_sdk_example
 
-Demonstrates how to use the nosmai_flutter plugin.
+Demonstrates how to use the nosmai_camera_sdk plugin.
 
 ## Getting Started
 

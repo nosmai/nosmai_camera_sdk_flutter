@@ -1,13 +1,13 @@
-name: nosmai_flutter_example
-description: "Demonstrates how to use the nosmai_flutter plugin."
+name: nosmai_camera_sdk_example
+description: "Demonstrates how to use the nosmai_camera_sdk plugin."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.2
+version: 1.0.2+1
 
 environment:
-  sdk: ^3.4.0
+  sdk: ^3.5.4
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -19,7 +19,13 @@ dependencies:
   flutter:
     sdk: flutter
 
-  nosmai_camera_sdk: ^1.0.0
+  nosmai_camera_sdk:
+    # When depending on this package from a real application you should use:
+    #   nosmai_camera_sdk: ^x.y.z
+    # See https://dart.dev/tools/pub/dependencies#version-constraints
+    # The example app is bundled with the plugin so we use a path dependency on
+    # the parent directory to use the current plugin's version.
+    path: ../
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -28,6 +34,8 @@ dependencies:
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to

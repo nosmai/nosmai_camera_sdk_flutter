@@ -52,10 +52,10 @@ echo -e "${YELLOW}🧪 Running Test Suite...${NC}"
 echo "================================================"
 
 # Run individual test files
-run_test "test/nosmai_flutter_test.dart" "Core Functionality Tests"
+run_test "test/nosmai_camera_sdk_test.dart" "Core Functionality Tests"
 run_test "test/types_test.dart" "Type System Tests"
 run_test "test/performance_test.dart" "Performance & Stress Tests"
-run_test "test/nosmai_flutter_method_channel_test.dart" "Method Channel Tests"
+run_test "test/nosmai_camera_sdk_method_channel_test.dart" "Method Channel Tests"
 
 # Run all tests together for coverage
 echo -e "${BLUE}🧪 Running Complete Test Suite with Coverage...${NC}"

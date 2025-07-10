@@ -1,3 +1,8 @@
+/// Nosmai Flutter Plugin Types
+///
+/// This file contains all the type definitions used by the Nosmai Flutter plugin.
+library;
+
 import 'dart:typed_data';
 
 /// Camera position enumeration

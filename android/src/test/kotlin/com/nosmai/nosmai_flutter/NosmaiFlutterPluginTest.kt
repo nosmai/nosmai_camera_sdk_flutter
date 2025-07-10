@@ -1,4 +1,4 @@
-package com.nosmai.nosmai_flutter
+package com.nosmai.nosmai_camera_sdk
 
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel

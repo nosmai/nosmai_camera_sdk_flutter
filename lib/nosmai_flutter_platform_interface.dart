@@ -1,8 +1,8 @@
+import 'package:nosmai_camera_sdk/nosmai_flutter_method_channel.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-import 'nosmai_flutter_method_channel.dart';
 import 'nosmai_types.dart';
 
-/// The interface that implementations of nosmai_flutter must implement.
+/// The interface that implementations of nosmai_camera_sdk must implement.
 abstract class NosmaiFlutterPlatform extends PlatformInterface {
   /// Constructs a NosmaiFlutterPlatform.
   NosmaiFlutterPlatform() : super(token: _token);

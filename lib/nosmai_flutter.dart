@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'nosmai_flutter_platform_interface.dart';
+import 'package:nosmai_camera_sdk/nosmai_flutter_platform_interface.dart';
+
 import 'nosmai_types.dart';
 
 // Export types and widgets for easy access
@@ -243,8 +244,8 @@ class NosmaiFlutter {
       if (_isRecording) {
         await stopRecording().catchError((e) {
           debugPrint('Error stopping recording during cleanup: $e');
-          return const NosmaiRecordingResult(
-              success: false, duration: 0, fileSize: 0);
+          return NosmaiRecordingResult(
+              success: false, videoPath: null, duration: 0.0, fileSize: 0);
         });
       }
 
@@ -252,7 +253,6 @@ class NosmaiFlutter {
       if (_isProcessing) {
         await stopProcessing().catchError((e) {
           debugPrint('Error stopping processing during cleanup: $e');
-          return;
         });
       }
 
@@ -284,8 +284,8 @@ class NosmaiFlutter {
       if (_isRecording) {
         await stopRecording().catchError((e) {
           debugPrint('Error stopping recording during cleanup: $e');
-          return const NosmaiRecordingResult(
-              success: false, duration: 0, fileSize: 0);
+          return NosmaiRecordingResult(
+              success: false, videoPath: null, duration: 0.0, fileSize: 0);
         });
       }
 
@@ -293,7 +293,6 @@ class NosmaiFlutter {
       if (_isProcessing) {
         await stopProcessing().catchError((e) {
           debugPrint('Error stopping processing during cleanup: $e');
-          return;
         });
       }
 
@@ -584,7 +583,7 @@ class NosmaiFlutter {
 
   /// Save image data to device gallery (iOS Photos app)
   ///
-  /// [imageData] - Raw image data as List&lt;int&gt;
+  /// [imageData] - Raw image data as `List<int>`
   /// [name] - Optional name for the saved image
   /// Returns a map with success status and file path
   Future<Map<String, dynamic>> saveImageToGallery(List<int> imageData,
@@ -680,7 +679,7 @@ class NosmaiFlutter {
           const Duration(seconds: 5),
           onTimeout: () {
             debugPrint('⚠️ Recording stop timed out during dispose');
-            return const NosmaiRecordingResult(
+            return NosmaiRecordingResult(
                 success: false, duration: 0, fileSize: 0);
           },
         );

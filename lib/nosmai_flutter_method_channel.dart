@@ -1,13 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'nosmai_flutter_platform_interface.dart';
+import 'package:nosmai_camera_sdk/nosmai_flutter_platform_interface.dart';
 import 'nosmai_types.dart';
 
-/// Camera state notifier for communication between platform and widgets
-class CameraStateNotifier {
-  static final CameraStateNotifier _instance = CameraStateNotifier._internal();
-  static CameraStateNotifier get instance => _instance;
-  CameraStateNotifier._internal();
+/// Internal camera state notifier for communication between platform and widgets
+class CameraStateNotifierImpl {
+  static final CameraStateNotifierImpl _instance =
+      CameraStateNotifierImpl._internal();
+  static CameraStateNotifierImpl get instance => _instance;
+  CameraStateNotifierImpl._internal();
 
   final List<Function()> _attachedCallbacks = [];
   final List<Function()> _detachedCallbacks = [];
@@ -91,11 +92,17 @@ class CameraStateNotifier {
   }
 }
 
+/// Expose camera state notifier for use in other files
+class CameraStateNotifier {
+  static CameraStateNotifierImpl get instance =>
+      CameraStateNotifierImpl.instance;
+}
+
 /// An implementation of [NosmaiFlutterPlatform] that uses method channels.
 class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   /// The method channel used to interact with the native platform.
   @visibleForTesting
-  final methodChannel = const MethodChannel('nosmai_flutter');
+  final methodChannel = const MethodChannel('nosmai_camera_sdk');
 
   /// Constructor that sets up method call handler for callbacks
   MethodChannelNosmaiFlutter() {
@@ -125,19 +132,19 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         break;
       case 'onCameraAttached':
         // Camera successfully attached - notify camera preview widgets
-        CameraStateNotifier.instance.notifyCameraAttached();
+        CameraStateNotifierImpl.instance.notifyCameraAttached();
         break;
       case 'onCameraDetached':
         // Camera detached - notify camera preview widgets
-        CameraStateNotifier.instance.notifyCameraDetached();
+        CameraStateNotifierImpl.instance.notifyCameraDetached();
         break;
       case 'onCameraReady':
         // Camera is ready for processing
-        CameraStateNotifier.instance.notifyCameraReady();
+        CameraStateNotifierImpl.instance.notifyCameraReady();
         break;
       case 'onCameraProcessingStopped':
         // Camera processing stopped
-        CameraStateNotifier.instance.notifyCameraProcessingStopped();
+        CameraStateNotifierImpl.instance.notifyCameraProcessingStopped();
         break;
     }
   }

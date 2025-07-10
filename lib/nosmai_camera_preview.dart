@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'nosmai_flutter.dart';
+import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
 
 /// A widget that displays the Nosmai camera preview with proper lifecycle management
 class NosmaiCameraPreview extends StatefulWidget {
@@ -321,9 +321,9 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
                 size: 48,
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Camera Error',
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,

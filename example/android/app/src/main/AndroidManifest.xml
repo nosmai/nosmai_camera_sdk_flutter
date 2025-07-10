@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="nosmai_flutter_example"
+        android:label="nosmai_camera_sdk_example"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

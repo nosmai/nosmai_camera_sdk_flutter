@@ -9,7 +9,7 @@ void main() async {
 
   // Initialize Nosmai SDK once for the entire app
   await NosmaiAppManager.instance.initialize(
-    'YOUR_API_KEY_HERE',
+    'NOSMAI-91d1b0526e05233b0c682604a2290ad7134b296ceae23fe3',
   );
 
   runApp(const MyApp());
@@ -197,7 +197,7 @@ class HomePage extends StatelessWidget {
                     crossAxisCount: 2,
                     crossAxisSpacing: isSmallScreen ? 8 : 12,
                     mainAxisSpacing: isSmallScreen ? 8 : 12,
-                    childAspectRatio: isSmallScreen ? 1.8 : 1.4,
+                    childAspectRatio: isSmallScreen ? 1.8 : 1.6,
                     children: [
                       _buildFeatureCard(
                         icon: Icons.auto_awesome,

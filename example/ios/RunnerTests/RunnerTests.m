@@ -3,7 +3,7 @@
 #import <XCTest/XCTest.h>
 
 
-@import nosmai_flutter;
+@import nosmai_camera_sdk;
 
 // This demonstrates a simple unit test of the Objective-C portion of this plugin's implementation.
 //

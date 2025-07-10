@@ -10,10 +10,10 @@ The Nosmai Flutter plugin includes a **professional-grade test suite** with **15
 
 | Test File | Purpose | Test Count | Coverage |
 |-----------|---------|------------|----------|
-| `nosmai_flutter_test.dart` | Core functionality & integration | 50+ tests | 🎯 Main API |
+| `nosmai_camera_sdk_test.dart` | Core functionality & integration | 50+ tests | 🎯 Main API |
 | `types_test.dart` | Type system & data structures | 30+ tests | 📊 Data Types |
 | `performance_test.dart` | Performance & stress testing | 40+ tests | ⚡ Performance |
-| `nosmai_flutter_method_channel_test.dart` | Method channel communication | 20+ tests | 🔌 Platform Bridge |
+| `nosmai_camera_sdk_method_channel_test.dart` | Method channel communication | 20+ tests | 🔌 Platform Bridge |
 
 ## 🚀 Running Tests
 
@@ -23,7 +23,7 @@ The Nosmai Flutter plugin includes a **professional-grade test suite** with **15
 ./test_runner.sh
 
 # Run specific test file
-flutter test test/nosmai_flutter_test.dart
+flutter test test/nosmai_camera_sdk_test.dart
 
 # Run with coverage
 flutter test --coverage
@@ -32,7 +32,7 @@ flutter test --coverage
 ### **Individual Test Categories:**
 ```bash
 # Core functionality tests
-flutter test test/nosmai_flutter_test.dart
+flutter test test/nosmai_camera_sdk_test.dart
 
 # Type system tests  
 flutter test test/types_test.dart
@@ -43,7 +43,7 @@ flutter test test/performance_test.dart
 
 ## 📊 Test Categories
 
-### 🎯 **Core Tests** (`nosmai_flutter_test.dart`)
+### 🎯 **Core Tests** (`nosmai_camera_sdk_test.dart`)
 
 #### ✅ **Initialization & Lifecycle:**
 - ✅ SDK initialization with valid/invalid license

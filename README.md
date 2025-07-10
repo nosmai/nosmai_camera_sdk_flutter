@@ -137,7 +137,7 @@ Create a `NosmaiAppManager` class to handle SDK lifecycle:
 
 ```dart
 // nosmai_app_manager.dart
-import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
+import 'package:nosmai_camera_sdk/nosmai_camera_sdk.dart';
 
 class NosmaiAppManager {
   static final NosmaiAppManager _instance = NosmaiAppManager._internal();
@@ -166,7 +166,7 @@ class NosmaiAppManager {
 ### Basic Setup with Camera Preview
 
 ```dart
-import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
+import 'package:nosmai_camera_sdk/nosmai_camera_sdk.dart';
 
 class CameraScreen extends StatefulWidget {
   @override
@@ -627,7 +627,7 @@ cd .. && flutter run
 If you're integrating this plugin into an existing project that already uses the Nosmai SDK:
 
 1. The plugin expects to find your SDK headers at the relative path shown in the podspec
-2. Update the header search paths in `ios/nosmai_flutter.podspec` if needed
+2. Update the header search paths in `ios/nosmai_camera_sdk.podspec` if needed
 3. Ensure your license key is valid and matches the one used in your existing app
 4. The plugin will work alongside your existing Nosmai implementation
 

@@ -1,4 +1,4 @@
-package com.nosmai.nosmai_flutter
+package com.nosmai.nosmai_camera_sdk
 
 import androidx.annotation.NonNull
 
@@ -17,7 +17,7 @@ class NosmaiFlutterPlugin: FlutterPlugin, MethodCallHandler {
   private lateinit var channel : MethodChannel
 
   override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-    channel = MethodChannel(flutterPluginBinding.binaryMessenger, "nosmai_flutter")
+    channel = MethodChannel(flutterPluginBinding.binaryMessenger, "nosmai_camera_sdk")
     channel.setMethodCallHandler(this)
   }
 

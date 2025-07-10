@@ -6,8 +6,7 @@ class MetadataFilterExample extends StatefulWidget {
   const MetadataFilterExample({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
-  _MetadataFilterExampleState createState() => _MetadataFilterExampleState();
+  State<MetadataFilterExample> createState() => _MetadataFilterExampleState();
 }
 
 class _MetadataFilterExampleState extends State<MetadataFilterExample> {
@@ -98,7 +97,6 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
   }
 
   Widget _buildFilterChip(dynamic filter) {
-    _nosmai.isBeautyFilter(filter);
     String displayName = '';
     NosmaiFilterCategory category = NosmaiFilterCategory.unknown;
 
