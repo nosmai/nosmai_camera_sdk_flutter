@@ -49,6 +49,16 @@ class NosmaiFlutter {
   /// List of active async operations to cancel on dispose
   final List<Future> _activeOperations = [];
 
+  /// Filter cache with TTL management
+  static List<NosmaiFilter>? _cachedFilters;
+  static DateTime? _lastCacheTime;
+  static const Duration _defaultCacheValidityDuration = Duration(minutes: 5);
+
+  /// Camera switch throttling
+  static bool _isCameraSwitching = false;
+  static DateTime? _lastSwitchTime;
+  static const Duration _defaultThrottleDuration = Duration(milliseconds: 500);
+
   /// Stream of error events
   Stream<NosmaiError> get onError {
     _errorController ??= StreamController<NosmaiError>.broadcast();
@@ -114,6 +124,35 @@ class NosmaiFlutter {
       ));
       return false;
     }
+  }
+
+  /// Initialize the SDK
+  /// 
+  /// [licenseKey] - Your Nosmai SDK license key
+  /// 
+  /// Returns true if initialization was successful, false otherwise.
+  static Future<bool> initialize(String licenseKey) async {
+    final instance = NosmaiFlutter.instance;
+    
+    // Initialize the SDK
+    final success = await instance.initWithLicense(licenseKey);
+    
+    if (success) {
+      _preloadEssentialFilters();
+    }
+    
+    return success;
+  }
+
+  static void _preloadEssentialFilters() {
+    Future.microtask(() async {
+      try {
+        final instance = NosmaiFlutter.instance;
+        await instance.getLocalFilters();
+      } catch (e) {
+        // Filter pre-loading failed
+      }
+    });
   }
 
   /// Configure camera with position and optional session preset
@@ -236,8 +275,64 @@ class NosmaiFlutter {
     }).toList();
   }
 
-  /// Switch between front and back camera
-  Future<void> switchCamera() async {
+  /// Get filters
+  /// 
+  /// Returns cached filters when available, otherwise fetches fresh data.
+  /// 
+  /// [forceRefresh] - Whether to force refresh the cache
+  Future<List<NosmaiFilter>> getFilters({
+    bool forceRefresh = false,
+  }) async {
+    const cacheValidityDuration = _defaultCacheValidityDuration;
+    _checkInitialized();
+    
+    // Check if cache is valid and not forcing refresh
+    if (!forceRefresh && _isCacheValid(cacheValidityDuration)) {
+      return _cachedFilters!;
+    }
+    
+    // Fetch fresh filters
+    final filters = await fetchFiltersAndEffectsFromAllSources();
+    
+    // Update cache
+    _updateFilterCache(filters);
+    
+    return filters;
+  }
+
+  /// Clear filter cache
+  Future<void> clearCache() async {
+    _cachedFilters = null;
+    _lastCacheTime = null;
+  }
+
+  /// Configure filter cache settings
+  /// 
+  /// This method allows customization of the filter cache behavior.
+  /// Note: This is a placeholder for future cache configuration options.
+  Future<void> setCacheConfig(Map<String, dynamic> config) async {
+    // Future implementation for cache configuration
+    // Could include: max cache size, custom TTL per filter type, etc.
+  }
+
+  /// Check if the filter cache is still valid
+  static bool _isCacheValid(Duration validityDuration) {
+    return _cachedFilters != null && 
+           _lastCacheTime != null && 
+           DateTime.now().difference(_lastCacheTime!) < validityDuration;
+  }
+
+  /// Update the filter cache with new data
+  static void _updateFilterCache(List<NosmaiFilter> filters) {
+    _cachedFilters = filters;
+    _lastCacheTime = DateTime.now();
+  }
+
+  /// Switch camera immediately (advanced)
+  /// 
+  /// Direct camera switch without throttling protection.
+  /// Use switchCamera() instead for most cases.
+  Future<void> switchCameraImmediate() async {
     _checkInitialized();
     
     try {
@@ -265,6 +360,48 @@ class NosmaiFlutter {
       );
     }
   }
+
+  /// Switch camera position
+  /// 
+  /// Switches between front and back camera with built-in protection against
+  /// rapid switching that could cause crashes.
+  /// 
+  /// Returns true if camera switch was performed, false if ignored.
+  Future<bool> switchCamera() async {
+    const throttleDuration = Duration(milliseconds: 500);
+    _checkInitialized();
+    
+    // Check if camera switching is in progress - silently ignore
+    if (_isCameraSwitching) {
+      return false;
+    }
+    
+    // Check throttle timing - silently ignore rapid taps
+    final now = DateTime.now();
+    if (_lastSwitchTime != null && 
+        now.difference(_lastSwitchTime!) < throttleDuration) {
+      return false;
+    }
+    
+    // Set switching state
+    _isCameraSwitching = true;
+    _lastSwitchTime = now;
+    
+    try {
+      // Perform the camera switch
+      await switchCameraImmediate();
+      return true;
+    } catch (e) {
+      // Re-throw the actual camera switch error
+      rethrow;
+    } finally {
+      // Always reset switching state
+      _isCameraSwitching = false;
+    }
+  }
+
+  /// Whether a camera switch operation is currently in progress
+  static bool get isCameraSwitching => _isCameraSwitching;
 
   /// Remove all applied filters
   Future<void> removeAllFilters() async {

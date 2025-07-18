@@ -11,9 +11,35 @@ class MetadataFilterExample extends StatefulWidget {
 
 class _MetadataFilterExampleState extends State<MetadataFilterExample> {
   final _nosmai = NosmaiFlutter.instance;
+  
+  // Filter state management
   Map<NosmaiFilterCategory, List<NosmaiFilter>> _filtersByCategory = {};
   String _currentFilterName = 'None';
   bool _isLoading = false;
+  
+  // Filter categories for display
+  static const Map<NosmaiFilterCategory, FilterCategoryConfig> _categoryConfigs = {
+    NosmaiFilterCategory.beauty: FilterCategoryConfig(
+      name: 'Beauty Filters',
+      icon: Icons.face,
+      color: Colors.pink,
+    ),
+    NosmaiFilterCategory.effect: FilterCategoryConfig(
+      name: 'Creative Effects',
+      icon: Icons.auto_awesome,
+      color: Colors.purple,
+    ),
+    NosmaiFilterCategory.filter: FilterCategoryConfig(
+      name: 'Standard Filters',
+      icon: Icons.tune,
+      color: Colors.blue,
+    ),
+    NosmaiFilterCategory.unknown: FilterCategoryConfig(
+      name: 'Other Filters',
+      icon: Icons.help_outline,
+      color: Colors.grey,
+    ),
+  };
 
   @override
   void initState() {
@@ -21,137 +47,145 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
     _loadFilters();
   }
 
+  /// Load and organize filters from all sources
+  /// 
+  /// This method fetches filters from both local and cloud sources,
+  /// then organizes them by category based on their metadata.
   Future<void> _loadFilters() async {
     setState(() => _isLoading = true);
 
     try {
-      // Load filters from all sources
       final filters = await _nosmai.fetchFiltersAndEffectsFromAllSources();
+      final organized = _organizeFiltersByCategory(filters);
       
-      // Organize filters by category
-      final organized = <NosmaiFilterCategory, List<NosmaiFilter>>{};
-      for (final category in NosmaiFilterCategory.values) {
-        organized[category] = [];
-      }
-      
-      for (final filter in filters) {
-        organized[filter.filterCategory]!.add(filter);
-      }
-
       setState(() {
         _filtersByCategory = organized;
         _isLoading = false;
       });
 
-      // Log filter counts
-      debugPrint('📊 Filters loaded:');
-      organized.forEach((category, filters) {
-        debugPrint('  ${category.name}: ${filters.length} filters');
-      });
+      _logFilterCounts(organized);
     } catch (e) {
       debugPrint('Error loading filters: $e');
       setState(() => _isLoading = false);
     }
   }
 
+  /// Organize filters by their category
+  Map<NosmaiFilterCategory, List<NosmaiFilter>> _organizeFiltersByCategory(
+    List<NosmaiFilter> filters,
+  ) {
+    final organized = <NosmaiFilterCategory, List<NosmaiFilter>>{};
+    
+    // Initialize empty lists for all categories
+    for (final category in NosmaiFilterCategory.values) {
+      organized[category] = [];
+    }
+    
+    // Categorize filters
+    for (final filter in filters) {
+      organized[filter.filterCategory]!.add(filter);
+    }
+    
+    return organized;
+  }
+
+  /// Log filter counts for debugging
+  void _logFilterCounts(Map<NosmaiFilterCategory, List<NosmaiFilter>> organized) {
+    debugPrint('📊 Filters loaded:');
+    organized.forEach((category, filters) {
+      debugPrint('  ${category.name}: ${filters.length} filters');
+    });
+  }
+
+  /// Apply a filter with proper handling based on its type
+  /// 
+  /// This method handles both local and cloud filters, downloads cloud filters
+  /// if needed, and properly manages beauty vs. effect filter application.
   Future<void> _applyFilter(NosmaiFilter filter) async {
-    // Determine if this is a beauty filter using metadata
-    final isBeautyFilter = await _nosmai.isBeautyFilter();
-
-    debugPrint('🎨 Applying filter: ${filter.displayName}');
-    debugPrint('   Is beauty filter: $isBeautyFilter');
-
     try {
+      final isBeautyFilter = await _nosmai.isBeautyFilter();
+      
+      debugPrint('🎨 Applying filter: ${filter.displayName}');
+      debugPrint('   Is beauty filter: $isBeautyFilter');
+
       // For non-beauty filters, remove existing effects first
       if (!isBeautyFilter) {
         await _nosmai.removeAllFilters();
       }
 
-      // Apply the filter
-      String? filterPath;
-      String displayName = '';
-
-      if (filter.isLocalFilter) {
-        filterPath = filter.path;
-        displayName = filter.displayName;
-      } else if (filter.isCloudFilter) {
-        if (filter.isDownloaded) {
-          filterPath = filter.path;
-          displayName = filter.displayName;
-        } else {
-          // Need to download first
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Downloading ${filter.displayName}...')),
-            );
-          }
-          await _nosmai.downloadCloudFilter(filter.id);
-          return;
-        }
-      }
-
+      final filterPath = await _getFilterPath(filter);
+      
       if (filterPath != null) {
         await _nosmai.applyEffect(filterPath);
         setState(() {
-          _currentFilterName = displayName;
+          _currentFilterName = filter.displayName;
         });
       }
     } catch (e) {
       debugPrint('Error applying filter: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to apply filter: $e')),
-        );
-      }
+      _showErrorSnackBar('Failed to apply filter: $e');
     }
   }
 
-  Widget _buildFilterChip(NosmaiFilter filter) {
-    final displayName = filter.displayName;
-    final category = filter.filterCategory;
-
-    // Choose icon based on category
-    IconData icon;
-    Color color;
-
-    switch (category) {
-      case NosmaiFilterCategory.beauty:
-        icon = Icons.face;
-        color = Colors.pink;
-        break;
-      case NosmaiFilterCategory.effect:
-        icon = Icons.auto_awesome;
-        color = Colors.purple;
-        break;
-      case NosmaiFilterCategory.filter:
-        icon = Icons.tune;
-        color = Colors.blue;
-        break;
-      default:
-        icon = Icons.help_outline;
-        color = Colors.grey;
+  /// Get the path for a filter, downloading if necessary
+  Future<String?> _getFilterPath(NosmaiFilter filter) async {
+    if (filter.isLocalFilter) {
+      return filter.path;
+    } else if (filter.isCloudFilter) {
+      if (filter.isDownloaded) {
+        return filter.path;
+      } else {
+        // Need to download first
+        _showDownloadingSnackBar(filter.displayName);
+        await _nosmai.downloadCloudFilter(filter.id);
+        return null; // Return null to indicate download is in progress
+      }
     }
+    return null;
+  }
+
+  /// Show downloading snackbar
+  void _showDownloadingSnackBar(String filterName) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Downloading $filterName...')),
+      );
+    }
+  }
+
+  /// Show error snackbar
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+  }
+
+  /// Build a filter chip widget for a specific filter
+  Widget _buildFilterChip(NosmaiFilter filter) {
+    final config = _categoryConfigs[filter.filterCategory] ?? 
+                   _categoryConfigs[NosmaiFilterCategory.unknown]!;
 
     return Padding(
       padding: const EdgeInsets.all(4),
       child: ActionChip(
-        avatar: Icon(icon, color: color, size: 18),
-        label: Text(displayName),
+        avatar: Icon(config.icon, color: config.color, size: 18),
+        label: Text(filter.displayName),
         onPressed: () => _applyFilter(filter),
-        backgroundColor: color.withValues(alpha: 0.1),
+        backgroundColor: config.color.withValues(alpha: 0.1),
       ),
     );
   }
 
-  Widget _buildCategorySection(
-    String title,
-    NosmaiFilterCategory category,
-    IconData icon,
-    Color color,
-  ) {
+  /// Build a category section with filters
+  Widget _buildCategorySection(NosmaiFilterCategory category) {
     final filters = _filtersByCategory[category] ?? [];
-
-    if (filters.isEmpty) return const SizedBox.shrink();
+    final config = _categoryConfigs[category];
+    
+    if (filters.isEmpty || config == null) {
+      return const SizedBox.shrink();
+    }
 
     return Card(
       margin: const EdgeInsets.all(8),
@@ -160,41 +194,44 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(icon, color: color),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${filters.length}',
-                    style: TextStyle(fontSize: 12, color: color),
-                  ),
-                ),
-              ],
-            ),
+            _buildCategoryHeader(config, filters.length),
             const SizedBox(height: 8),
             Wrap(
-              children:
-                  filters.map((filter) => _buildFilterChip(filter)).toList(),
+              children: filters.map((filter) => _buildFilterChip(filter)).toList(),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  /// Build category header with title and count
+  Widget _buildCategoryHeader(FilterCategoryConfig config, int count) {
+    return Row(
+      children: [
+        Icon(config.icon, color: config.color),
+        const SizedBox(width: 8),
+        Text(
+          config.name,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: config.color,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: config.color.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            count.toString(),
+            style: TextStyle(fontSize: 12, color: config.color),
+          ),
+        ),
+      ],
     );
   }
 
@@ -254,36 +291,9 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
                         ),
                       ),
 
-                      // Beauty filters section
-                      _buildCategorySection(
-                        'Beauty Filters',
-                        NosmaiFilterCategory.beauty,
-                        Icons.face,
-                        Colors.pink,
-                      ),
-
-                      // Effect filters section
-                      _buildCategorySection(
-                        'Creative Effects',
-                        NosmaiFilterCategory.effect,
-                        Icons.auto_awesome,
-                        Colors.purple,
-                      ),
-
-                      // Standard filters section
-                      _buildCategorySection(
-                        'Standard Filters',
-                        NosmaiFilterCategory.filter,
-                        Icons.tune,
-                        Colors.blue,
-                      ),
-
-                      // Unknown filters section (if any)
-                      _buildCategorySection(
-                        'Other Filters',
-                        NosmaiFilterCategory.unknown,
-                        Icons.help_outline,
-                        Colors.grey,
+                      // Render all category sections
+                      ..._categoryConfigs.keys.map(
+                        (category) => _buildCategorySection(category),
                       ),
 
                       // Info card
@@ -328,6 +338,19 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
       ),
     );
   }
+}
+
+/// Configuration class for filter categories
+class FilterCategoryConfig {
+  final String name;
+  final IconData icon;
+  final Color color;
+
+  const FilterCategoryConfig({
+    required this.name,
+    required this.icon,
+    required this.color,
+  });
 }
 
 // Example usage in main app

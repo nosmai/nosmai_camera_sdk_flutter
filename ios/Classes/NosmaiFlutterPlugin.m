@@ -239,12 +239,8 @@
       strongSelf.isInitialized = success;
       
       if (success) {
-        NosmaiCameraConfig *config = [[NosmaiCameraConfig alloc] init];
-        config.position = NosmaiCameraPositionFront;
-        config.sessionPreset = AVCaptureSessionPresetHigh;
-        config.frameRate = 30;
-        
-        [[NosmaiCore shared].camera updateConfiguration:config];
+        // Only set delegates during initialization, don't configure camera yet
+        // Camera will be configured when user explicitly opens camera
         [[NosmaiCore shared].camera setDelegate:strongSelf];
         [[NosmaiCore shared].effects setDelegate:strongSelf];
         

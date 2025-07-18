@@ -2,280 +2,98 @@
 
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'nosmai_app_manager.dart';
+import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
 import 'unified_camera_screen.dart';
 
+/// Main entry point for the Nosmai Camera SDK example application
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Pre-request permissions for instant camera access
-  await _preRequestPermissions();
-
-  // Initialize Nosmai SDK once for the entire app
-  await NosmaiAppManager.instance.initialize('YOUR_API_KEY_HERE');
-
-  runApp(const MyApp());
-}
-
-Future<void> _preRequestPermissions() async {
   try {
-    // Pre-request camera permission silently
-    await Permission.camera.request();
-    // Pre-request microphone permission for video recording
-    await Permission.microphone.request();
+    await NosmaiFlutter.initialize(
+        'YOUR-NOSMAI-API-KEY-HERE'); // Replace with your actual API key
   } catch (e) {
-    // Silently handle permission errors
-    print('Permission pre-request failed: $e');
+    print('Failed to initialize Nosmai SDK: $e');
   }
+
+  runApp(const NosmaiCameraApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+/// Main application widget that sets up the MaterialApp with theme
+class NosmaiCameraApp extends StatelessWidget {
+  const NosmaiCameraApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Nosmai Camera',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6C5CE7),
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
+      theme: _buildAppTheme(),
       home: const HomePage(),
+    );
+  }
+
+  /// Creates and returns the application theme
+  ThemeData _buildAppTheme() {
+    return ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFF6C5CE7),
+        brightness: Brightness.dark,
+      ),
+      useMaterial3: true,
     );
   }
 }
 
-class HomePage extends StatelessWidget {
+/// Home page widget that displays the main interface
+/// Contains the camera launch button and feature showcase
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  bool _isLoading = false;
+
+  // Theme colors
+  static const Color _primaryColor = Color(0xFF6C5CE7);
+  static const Color _backgroundColor = Color(0xFF0A0A0A);
+  static const Color _surfaceColor = Color(0xFF1A1A1A);
+
+  // Feature card colors
+  static const Color _effectsColor = Color(0xFF6C5CE7);
+  static const Color _beautyColor = Color(0xFFFF6B6B);
+  static const Color _colorColor = Color(0xFF4ECDC4);
+  static const Color _recordColor = Color(0xFFFFD93D);
+
+  @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
+    final screenSize = MediaQuery.of(context).size;
+    final screenHeight = screenSize.height;
+    final screenWidth = screenSize.width;
     final isSmallScreen = screenHeight < 700;
     final isVerySmallScreen = screenHeight < 600;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0A),
+      backgroundColor: _backgroundColor,
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A1A1A), Color(0xFF0A0A0A)],
-          ),
-        ),
+        decoration: _buildBackgroundGradient(),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: screenWidth * 0.06,
-              vertical: isVerySmallScreen
-                  ? 12.0
-                  : (isSmallScreen ? 16.0 : 24.0),
-            ),
+            padding: _buildScreenPadding(
+                screenWidth, isSmallScreen, isVerySmallScreen),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(
-                  height: isVerySmallScreen ? 16 : (isSmallScreen ? 20 : 30),
-                ),
-
-                // App Logo/Icon
-                Container(
-                  width: isVerySmallScreen ? 70 : (isSmallScreen ? 80 : 100),
-                  height: isVerySmallScreen ? 70 : (isSmallScreen ? 80 : 100),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFF6C5CE7),
-                        const Color(0xFF6C5CE7).withValues(alpha: 0.6),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF6C5CE7).withValues(alpha: 0.3),
-                        blurRadius: 30,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.camera_alt_rounded,
-                    size: isSmallScreen ? 40 : 50,
-                    color: Colors.white,
-                  ),
-                ),
-
-                SizedBox(height: isSmallScreen ? 20 : 30),
-
-                // App Title
-                Text(
-                  'Nosmai Camera',
-                  style: TextStyle(
-                    fontSize: isSmallScreen ? 26 : 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                // Subtitle
-                Text(
-                  'Professional filters & effects',
-                  style: TextStyle(
-                    fontSize: isSmallScreen ? 14 : 16,
-                    color: Colors.white.withValues(alpha: 0.6),
-                    letterSpacing: 0.5,
-                  ),
-                ),
-
-                SizedBox(height: isSmallScreen ? 24 : 40),
-
-                // Main Camera Button
-                GestureDetector(
-                  onTap: () {
-                    // Use optimized navigation for instant transition
-                    Navigator.push(
-                      context,
-                      PageRouteBuilder(
-                        pageBuilder: (context, animation, secondaryAnimation) =>
-                            const UnifiedCameraScreen(),
-                        transitionDuration: const Duration(
-                          milliseconds: 100,
-                        ), // Fast transition
-                        reverseTransitionDuration: const Duration(
-                          milliseconds: 100,
-                        ),
-                        transitionsBuilder:
-                            (context, animation, secondaryAnimation, child) {
-                              return FadeTransition(
-                                opacity: animation,
-                                child: child,
-                              );
-                            },
-                      ),
-                    );
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    constraints: BoxConstraints(
-                      maxWidth: screenWidth * 0.8 > 300
-                          ? 300
-                          : screenWidth * 0.8,
-                    ),
-                    height: isSmallScreen ? 48 : 56,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFF6C5CE7),
-                          const Color(0xFF6C5CE7).withValues(alpha: 0.8),
-                        ],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      ),
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF6C5CE7).withValues(alpha: 0.4),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.camera_enhance_rounded,
-                          color: Colors.white,
-                          size: isSmallScreen ? 20 : 24,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Open Camera',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: isSmallScreen ? 16 : 18,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                SizedBox(height: isSmallScreen ? 24 : 32),
-
-                // Feature Grid
-                Container(
-                  constraints: BoxConstraints(
-                    maxWidth: screenWidth > 400 ? 400 : screenWidth * 0.9,
-                  ),
-                  child: GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    crossAxisSpacing: isSmallScreen ? 8 : 12,
-                    mainAxisSpacing: isSmallScreen ? 8 : 12,
-                    childAspectRatio: isSmallScreen ? 1.8 : 1.6,
-                    children: [
-                      _buildFeatureCard(
-                        icon: Icons.auto_awesome,
-                        title: 'Effects',
-                        subtitle: '20+ filters',
-                        color: const Color(0xFF6C5CE7),
-                        isSmallScreen: isSmallScreen,
-                        isVerySmallScreen: isVerySmallScreen,
-                      ),
-                      _buildFeatureCard(
-                        icon: Icons.face_retouching_natural,
-                        title: 'Beauty',
-                        subtitle: 'AI enhanced',
-                        color: const Color(0xFFFF6B6B),
-                        isSmallScreen: isSmallScreen,
-                        isVerySmallScreen: isVerySmallScreen,
-                      ),
-                      _buildFeatureCard(
-                        icon: Icons.palette_outlined,
-                        title: 'Color',
-                        subtitle: 'Pro tools',
-                        color: const Color(0xFF4ECDC4),
-                        isSmallScreen: isSmallScreen,
-                        isVerySmallScreen: isVerySmallScreen,
-                      ),
-                      _buildFeatureCard(
-                        icon: Icons.videocam_rounded,
-                        title: 'Record',
-                        subtitle: 'HD video',
-                        color: const Color(0xFFFFD93D),
-                        isSmallScreen: isSmallScreen,
-                        isVerySmallScreen: isVerySmallScreen,
-                      ),
-                    ],
-                  ),
-                ),
-
-                SizedBox(height: isSmallScreen ? 16 : 24),
-
-                // Version info
-                Text(
-                  'Version 1.0.0',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.3),
-                  ),
-                ),
-
-                SizedBox(height: isSmallScreen ? 16 : 20),
+                _buildTopSpacing(isSmallScreen, isVerySmallScreen),
+                _buildAppLogo(isSmallScreen, isVerySmallScreen),
+                _buildTitleSection(isSmallScreen),
+                _buildCameraButton(context, screenWidth, isSmallScreen),
+                _buildFeatureGrid(
+                    screenWidth, isSmallScreen, isVerySmallScreen),
+                _buildVersionInfo(),
+                _buildBottomSpacing(isSmallScreen),
               ],
             ),
           ),
@@ -284,7 +102,276 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  static Widget _buildFeatureCard({
+  /// Creates the background gradient decoration
+  BoxDecoration _buildBackgroundGradient() {
+    return const BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [_surfaceColor, _backgroundColor],
+      ),
+    );
+  }
+
+  /// Creates responsive padding based on screen size
+  EdgeInsets _buildScreenPadding(
+      double screenWidth, bool isSmallScreen, bool isVerySmallScreen) {
+    return EdgeInsets.symmetric(
+      horizontal: screenWidth * 0.06,
+      vertical: isVerySmallScreen ? 12.0 : (isSmallScreen ? 16.0 : 24.0),
+    );
+  }
+
+  /// Creates top spacing widget
+  Widget _buildTopSpacing(bool isSmallScreen, bool isVerySmallScreen) {
+    return SizedBox(
+      height: isVerySmallScreen ? 16 : (isSmallScreen ? 20 : 30),
+    );
+  }
+
+  /// Creates the app logo/icon widget
+  Widget _buildAppLogo(bool isSmallScreen, bool isVerySmallScreen) {
+    final size = isVerySmallScreen ? 70.0 : (isSmallScreen ? 80.0 : 100.0);
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [
+            _primaryColor,
+            _primaryColor.withValues(alpha: 0.6),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _primaryColor.withValues(alpha: 0.3),
+            blurRadius: 30,
+            spreadRadius: 5,
+          ),
+        ],
+      ),
+      child: Icon(
+        Icons.camera_alt_rounded,
+        size: isSmallScreen ? 40 : 50,
+        color: Colors.white,
+      ),
+    );
+  }
+
+  /// Creates the title section with app name and subtitle
+  Widget _buildTitleSection(bool isSmallScreen) {
+    return Column(
+      children: [
+        SizedBox(height: isSmallScreen ? 20 : 30),
+
+        // App Title
+        Text(
+          'Nosmai Camera',
+          style: TextStyle(
+            fontSize: isSmallScreen ? 26 : 32,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            letterSpacing: -0.5,
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        // Subtitle
+        Text(
+          'Professional filters & effects',
+          style: TextStyle(
+            fontSize: isSmallScreen ? 14 : 16,
+            color: Colors.white.withValues(alpha: 0.6),
+            letterSpacing: 0.5,
+          ),
+        ),
+
+        SizedBox(height: isSmallScreen ? 24 : 40),
+      ],
+    );
+  }
+
+  /// Creates the main camera button
+  Widget _buildCameraButton(
+      BuildContext context, double screenWidth, bool isSmallScreen) {
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: _isLoading ? null : () => _navigateToCamera(context),
+          child: Container(
+            width: double.infinity,
+            constraints: BoxConstraints(
+              maxWidth: screenWidth * 0.8 > 300 ? 300 : screenWidth * 0.8,
+            ),
+            height: isSmallScreen ? 48 : 56,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _primaryColor,
+                  _primaryColor.withValues(alpha: 0.8),
+                ],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: _primaryColor.withValues(alpha: 0.4),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (_isLoading)
+                  SizedBox(
+                    width: isSmallScreen ? 20 : 24,
+                    height: isSmallScreen ? 20 : 24,
+                    child: const CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                else
+                  Icon(
+                    Icons.camera_enhance_rounded,
+                    color: Colors.white,
+                    size: isSmallScreen ? 20 : 24,
+                  ),
+                const SizedBox(width: 12),
+                Text(
+                  _isLoading ? 'Opening...' : 'Open Camera',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: isSmallScreen ? 16 : 18,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(height: isSmallScreen ? 24 : 32),
+      ],
+    );
+  }
+
+  void _navigateToCamera(BuildContext context) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final cameraPermission = await Permission.camera.request();
+      await Permission.microphone.request();
+
+      if (cameraPermission.isGranted && context.mounted) {
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const UnifiedCameraScreen(),
+            transitionDuration: const Duration(milliseconds: 100),
+            reverseTransitionDuration: const Duration(milliseconds: 100),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  /// Creates the feature showcase grid
+  Widget _buildFeatureGrid(
+      double screenWidth, bool isSmallScreen, bool isVerySmallScreen) {
+    return Column(
+      children: [
+        Container(
+          constraints: BoxConstraints(
+            maxWidth: screenWidth > 400 ? 400 : screenWidth * 0.9,
+          ),
+          child: GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            crossAxisSpacing: isSmallScreen ? 8 : 12,
+            mainAxisSpacing: isSmallScreen ? 8 : 12,
+            childAspectRatio: isSmallScreen ? 1.8 : 1.6,
+            children: [
+              _buildFeatureCard(
+                icon: Icons.auto_awesome,
+                title: 'Effects',
+                subtitle: '20+ filters',
+                color: _effectsColor,
+                isSmallScreen: isSmallScreen,
+                isVerySmallScreen: isVerySmallScreen,
+              ),
+              _buildFeatureCard(
+                icon: Icons.face_retouching_natural,
+                title: 'Beauty',
+                subtitle: 'AI enhanced',
+                color: _beautyColor,
+                isSmallScreen: isSmallScreen,
+                isVerySmallScreen: isVerySmallScreen,
+              ),
+              _buildFeatureCard(
+                icon: Icons.palette_outlined,
+                title: 'Color',
+                subtitle: 'Pro tools',
+                color: _colorColor,
+                isSmallScreen: isSmallScreen,
+                isVerySmallScreen: isVerySmallScreen,
+              ),
+              _buildFeatureCard(
+                icon: Icons.videocam_rounded,
+                title: 'Record',
+                subtitle: 'HD video',
+                color: _recordColor,
+                isSmallScreen: isSmallScreen,
+                isVerySmallScreen: isVerySmallScreen,
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: isSmallScreen ? 16 : 24),
+      ],
+    );
+  }
+
+  /// Creates version information widget
+  Widget _buildVersionInfo() {
+    return Text(
+      'Version 1.0.0',
+      style: TextStyle(
+        fontSize: 12,
+        color: Colors.white.withValues(alpha: 0.3),
+      ),
+    );
+  }
+
+  /// Creates bottom spacing widget
+  Widget _buildBottomSpacing(bool isSmallScreen) {
+    return SizedBox(height: isSmallScreen ? 16 : 20);
+  }
+
+  /// Creates individual feature card widget
+  Widget _buildFeatureCard({
     required IconData icon,
     required String title,
     required String subtitle,
@@ -309,6 +396,7 @@ class HomePage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Icon container
             Container(
               width: isVerySmallScreen ? 24 : (isSmallScreen ? 28 : 36),
               height: isVerySmallScreen ? 24 : (isSmallScreen ? 28 : 36),
@@ -322,7 +410,10 @@ class HomePage extends StatelessWidget {
                 size: isVerySmallScreen ? 14 : (isSmallScreen ? 16 : 20),
               ),
             ),
+
             SizedBox(height: isVerySmallScreen ? 4 : (isSmallScreen ? 6 : 10)),
+
+            // Title
             Flexible(
               child: Text(
                 title,
@@ -335,7 +426,10 @@ class HomePage extends StatelessWidget {
                 maxLines: 1,
               ),
             ),
+
             const SizedBox(height: 2),
+
+            // Subtitle
             Flexible(
               child: Text(
                 subtitle,

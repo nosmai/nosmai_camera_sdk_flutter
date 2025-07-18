@@ -5,13 +5,15 @@ A Flutter plugin for integrating the Nosmai SDK - Real-time video filtering and 
 ## Features
 
 - 🎥 **Real-time video processing** with GPU acceleration and camera preview
+- ⚡ **Performance optimizations** with automatic pre-warming and intelligent caching
 - ✨ **Beauty filters** (skin smoothing, whitening, face slimming, eye enlargement, nose size)
 - 🎨 **Color adjustments** (brightness, contrast, HSB, white balance, RGB)
-- 🎭 **Effects and filters** with .nosmai file support
-- 📱 **Camera controls** (front/back switching, photo capture, video recording)
+- 🎭 **Effects and filters** with .nosmai file support and cloud filters
+- 📱 **Camera controls** with crash prevention and throttling protection
 - 💾 **Media management** (save photos and videos to gallery)
 - 📡 **Stream-based events** for real-time callbacks
 - 🏷️ **Metadata-based filter categorization** (beauty, effect, filter)
+- 🧠 **Smart filter caching** with TTL management
 - ♻️ **Automatic lifecycle management** with proper cleanup
 
 ## Platform Support
@@ -33,7 +35,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  nosmai_camera_sdk: ^1.0.0+1
+  nosmai_camera_sdk: ^1.0.2+1
 ```
 
 ## Setup
@@ -112,54 +114,64 @@ cd ios && pod install
 
 > **Important**: The camera, microphone, and photo library permissions are required for the plugin to function properly. Without these permissions, the app will crash when trying to access the camera or save media to the gallery.
 
+### Local Filters Setup
+
+To use local .nosmai filters in your app, you need to add them to your project assets:
+
+1. **Create the filters directory** in your Flutter project:
+   ```
+   your_app/
+     assets/
+       filters/
+         your_filter.nosmai
+         another_filter.nosmai
+   ```
+
+2. **Update your `pubspec.yaml`** to include the filters as assets:
+   ```yaml
+   flutter:
+     assets:
+       - assets/filters/
+   ```
+
+3. **Access filters in your code**:
+   ```dart
+   // Get all local filters (including those in assets/filters/)
+   final localFilters = await NosmaiFlutter.instance.getLocalFilters();
+   
+   // Apply a specific local filter
+   await NosmaiFlutter.instance.applyEffect('assets/filters/your_filter.nosmai');
+   ```
+
+> **Note**: Place your .nosmai filter files in the `assets/filters/` directory and ensure they are properly declared in `pubspec.yaml`. The plugin will automatically discover and include these filters when calling `getLocalFilters()`.
+
 ## Usage
 
 ### App Initialization
 
-For production apps, it's recommended to initialize the SDK once at app startup using a manager pattern:
+For production apps, initialize the SDK once at app startup with optimizations:
 
 ```dart
 // main.dart
 import 'package:flutter/material.dart';
-import 'nosmai_app_manager.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Nosmai SDK once for the entire app
-  await NosmaiAppManager.instance.initialize('YOUR_LICENSE_KEY');
+  try {
+    // Pre-request permissions for instant camera access
+    await Permission.camera.request();
+    await Permission.microphone.request();
+    
+    // Initialize SDK
+    await NosmaiFlutter.initialize('YOUR_LICENSE_KEY');
+  } catch (e) {
+    // Handle initialization error
+  }
   
   runApp(const MyApp());
-}
-```
-
-Create a `NosmaiAppManager` class to handle SDK lifecycle:
-
-```dart
-// nosmai_app_manager.dart
-import 'package:nosmai_camera_sdk/nosmai_camera_sdk.dart';
-
-class NosmaiAppManager {
-  static final NosmaiAppManager _instance = NosmaiAppManager._internal();
-  static NosmaiAppManager get instance => _instance;
-  NosmaiAppManager._internal();
-
-  final NosmaiFlutter _nosmai = NosmaiFlutter.instance;
-  NosmaiFlutter get nosmai => _nosmai;
-
-  bool _isInitialized = false;
-  bool get isInitialized => _isInitialized;
-
-  Future<bool> initialize(String licenseKey) async {
-    if (_isInitialized) return true;
-    
-    try {
-      _isInitialized = await _nosmai.initWithLicense(licenseKey);
-      return _isInitialized;
-    } catch (e) {
-      return false;
-    }
-  }
 }
 ```
 
@@ -183,7 +195,7 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   void _checkInitialization() {
-    // Check if SDK is already initialized through NosmaiAppManager
+    // Check if SDK is already initialized
     setState(() {
       _isInitialized = NosmaiFlutter.instance.isInitialized;
     });
@@ -320,18 +332,16 @@ if (success) {
   // Filter is now loaded and applied
 }
 
-// Get available filters
-final filters = await nosmai.getFilters();
+// Get cached filters with automatic performance optimization
+final filters = await nosmai.getCachedFilters();
 for (final filter in filters) {
   if (filter is NosmaiLocalFilter) {
     await nosmai.applyEffect(filter.path);
   }
 }
 
-// Get filters organized by category
-final organizedFilters = await nosmai.organizeFiltersByCategory();
-final beautyFilters = organizedFilters[NosmaiFilterCategory.beauty] ?? [];
-final effectFilters = organizedFilters[NosmaiFilterCategory.effect] ?? [];
+// Clear cache if needed
+await nosmai.clearFilterCache();
 ```
 
 ### Camera Controls and Media Capture
@@ -340,7 +350,15 @@ final effectFilters = organizedFilters[NosmaiFilterCategory.effect] ?? [];
 final nosmai = NosmaiFlutter.instance;
 
 // Switch between front and back camera
-await nosmai.switchCamera();
+final switched = await nosmai.switchCamera();
+if (switched) {
+  // Camera switch was performed
+} else {
+  // Switch was ignored due to throttling (no error thrown)
+}
+
+// Or use immediate switch (advanced)
+// await nosmai.switchCameraImmediate();
 
 // Capture photo with applied filters
 final result = await nosmai.capturePhoto();
@@ -406,24 +424,8 @@ The SDK provides metadata-based filter categorization:
 ```dart
 final nosmai = NosmaiFlutter.instance;
 
-// Get all available filters
+// Get filters with built-in caching
 final allFilters = await nosmai.getFilters();
-
-// Organize filters by category
-final organized = await nosmai.organizeFiltersByCategory();
-final beautyFilters = organized[NosmaiFilterCategory.beauty] ?? [];
-final effectFilters = organized[NosmaiFilterCategory.effect] ?? [];
-
-// Check if a filter is a beauty filter
-for (final filter in allFilters) {
-  if (nosmai.isBeautyFilter(filter)) {
-    debugPrint('${filter.displayName} is a beauty filter');
-  }
-}
-
-// Get only filters of a specific category
-final allFilters = await nosmai.organizeFiltersByCategory();
-final beautyOnly = allFilters[NosmaiFilterCategory.beauty] ?? [];
 
 // Apply filters based on type
 for (final filter in allFilters) {
@@ -431,6 +433,9 @@ for (final filter in allFilters) {
     await nosmai.applyEffect(filter.path);
   }
 }
+
+// Clear cache when needed
+await nosmai.clearCache();
 ```
 
 ## API Reference
@@ -446,12 +451,14 @@ Main class for interacting with the Nosmai SDK.
 - `bool isRecording` - Whether video recording is active
 - `Stream<NosmaiError> onError` - Stream of error events
 - `Stream<NosmaiDownloadProgress> onDownloadProgress` - Stream of download progress
-- `Stream<NosmaiSdkState> onStateChanged` - Stream of SDK state changes
+- `Stream<NosmaiSdkStateInfo> onStateChanged` - Stream of SDK state changes
+- `Stream<double> onRecordingProgress` - Stream of recording progress (duration in seconds)
 
 #### Methods
 
 ##### Initialization & Lifecycle
-- `Future<bool> initWithLicense(String licenseKey)` - Initialize SDK with license
+- `static Future<bool> initialize(String licenseKey)` - Initialize SDK (recommended)
+- `Future<bool> initWithLicense(String licenseKey)` - Initialize SDK with license (basic)
 - `Future<void> configureCamera({required NosmaiCameraPosition position, String? sessionPreset})` - Configure camera
 - `Future<void> startProcessing()` - Start video processing
 - `Future<void> stopProcessing()` - Stop video processing
@@ -459,7 +466,9 @@ Main class for interacting with the Nosmai SDK.
 - `void dispose()` - Dispose instance and stream controllers
 
 ##### Camera Controls
-- `Future<bool> switchCamera()` - Switch between front and back camera
+- `Future<bool> switchCamera()` - Switch camera with built-in protection (recommended)
+- `Future<void> switchCameraImmediate()` - Switch camera immediately (advanced)
+- `static bool get isCameraSwitching` - Whether camera switch is in progress
 - `Future<void> setPreviewView()` - Set preview view (iOS only)
 - `Future<void> detachCameraView()` - Detach camera view
 - `Future<void> setFaceDetectionEnabled(bool enable)` - Enable/disable face detection
@@ -496,15 +505,13 @@ Main class for interacting with the Nosmai SDK.
 - `Future<bool> setEffectParameter(String parameterName, double value)` - Set effect parameter
 
 ##### Filter Management
-- `Future<List<dynamic>> getFilters()` - Get all available filters
-- `Future<List<NosmaiLocalFilter>> getLocalFilters()` - Get local filters only
-- `Future<List<NosmaiCloudFilter>> getCloudFilters()` - Get cloud filters only
+- `Future<List<NosmaiFilter>> getFilters({bool forceRefresh})` - Get filters with built-in caching (recommended)
+- `Future<void> clearCache()` - Clear filter cache
+- `Future<void> setCacheConfig(Map<String, dynamic> config)` - Configure cache settings
+- `Future<List<NosmaiFilter>> fetchFiltersAndEffectsFromAllSources()` - Get all filters (basic)
+- `Future<List<NosmaiFilter>> getLocalFilters()` - Get local filters only
+- `Future<List<NosmaiFilter>> getCloudFilters()` - Get cloud filters only
 - `Future<Map<String, dynamic>> downloadCloudFilter(String filterId)` - Download cloud filter
-- `bool isBeautyFilter(dynamic filter)` - Check if filter is beauty type
-- `Future<Map<NosmaiFilterCategory, List<dynamic>>> organizeFiltersByCategory()` - Organize filters by category
-- `Future<void> clearFilterCache()` - Clear filter cache to force refresh
-- `Future<List<dynamic>> getInitialFilters()` - Get initial filters available from SDK
-- `Future<void> fetchCloudFilters()` - Fetch cloud filters from server
 
 ##### Filter Removal
 - `Future<void> removeAllFilters()` - Remove all applied filters
@@ -618,8 +625,8 @@ cd .. && flutter run
 
 ### Key Example Files
 
+- `lib/main.dart` - App initialization with optimized SDK setup
 - `lib/unified_camera_screen.dart` - Main camera interface with professional naming conventions and all features
-- `lib/nosmai_app_manager.dart` - SDK initialization and lifecycle management
 - `lib/filter_example.dart` - Individual filter testing interface
 - `lib/beauty_filter_screen.dart` - Dedicated beauty filter demonstration
 
@@ -657,7 +664,10 @@ If you're integrating this plugin into an existing project that already uses the
 
 ### Performance Tips
 
-- Initialize SDK once at app startup using `NosmaiAppManager` pattern
+- **Initialize**: Use `NosmaiFlutter.initialize()` for setup
+- **Use built-in caching**: Call `getFilters()` instead of fetching filters repeatedly
+- **Camera switching**: Use `switchCamera()` for safe switching
+- **Check switching state**: Use `NosmaiFlutter.isCameraSwitching` to disable UI during switches
 - Use `NosmaiFlutter.instance` singleton for all SDK operations
 - Use `NosmaiCameraPreview` widget for automatic lifecycle management
 - Stop processing when app goes to background to save battery with `stopProcessing()`
@@ -666,7 +676,6 @@ If you're integrating this plugin into an existing project that already uses the
 - Use horizontal scrollable filter panels for better UX as shown in the example
 - Call `cleanup()` instead of `dispose()` for SDK resource cleanup
 - Use `dispose()` only when completely done with the SDK instance
-- Cache filter lists and organize by category for better performance
 
 ## License
 

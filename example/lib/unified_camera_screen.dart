@@ -3,8 +3,20 @@ import 'package:flutter/services.dart';
 import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
-import 'nosmai_app_manager.dart';
 
+/// Unified camera screen that demonstrates comprehensive Nosmai SDK functionality
+/// 
+/// This screen showcases:
+/// - Live camera preview with filters
+/// - Photo capture and video recording
+/// - Filter categories (Effects, Beauty, Color, HSB, Cloud)
+/// - Real-time filter application
+/// - Cloud filter downloading
+/// - Camera switching
+/// - Responsive UI design
+/// 
+/// The implementation follows Flutter best practices with proper error handling,
+/// performance optimizations, and a clean, maintainable code structure.
 class UnifiedCameraScreen extends StatefulWidget {
   const UnifiedCameraScreen({super.key});
 
@@ -14,131 +26,21 @@ class UnifiedCameraScreen extends StatefulWidget {
 
 class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
     with TickerProviderStateMixin {
-  final NosmaiFlutter _nosmai = NosmaiAppManager.instance.nosmai;
+  // SDK instance
+  final NosmaiFlutter _nosmai = NosmaiFlutter.instance;
 
-  // State management
+  // Camera state
   bool _isRecording = false;
   bool _isFrontCamera = true;
-  bool _isCloudFiltersLoading = false;
-  bool _isCameraSwitching = false;
-  DateTime? _lastSwitchTime;
   
-  // Cache for faster loading
-  static List<FilterItem>? _cachedEffectFilters;
-  static DateTime? _lastCacheTime;
-
-  // Filter categories
-  final List<FilterCategory> _categories = [
-    FilterCategory(
-      name: 'Effects',
-      icon: Icons.auto_awesome,
-      filters: [],
-    ),
-    FilterCategory(
-      name: 'Beauty',
-      icon: Icons.face_retouching_natural,
-      filters: [
-        FilterItem(
-            id: 'skin_smoothing',
-            name: 'Smooth',
-            type: FilterType.slider,
-            value: 0.0,
-            min: 0.0,
-            max: 10.0),
-        FilterItem(
-            id: 'skin_whitening',
-            name: 'Brighten',
-            type: FilterType.slider,
-            value: 0.0,
-            min: 0.0,
-            max: 10.0),
-        FilterItem(
-            id: 'face_slimming',
-            name: 'Slim Face',
-            type: FilterType.slider,
-            value: 0.0,
-            min: 0.0,
-            max: 10.0),
-        FilterItem(
-            id: 'eye_enlargement',
-            name: 'Big Eyes',
-            type: FilterType.slider,
-            value: 0.0,
-            min: 0.0,
-            max: 10.0),
-        FilterItem(
-            id: 'nose_size',
-            name: 'Nose Size',
-            type: FilterType.slider,
-            value: 50.0,
-            min: 0.0,
-            max: 100.0),
-      ],
-    ),
-    FilterCategory(
-      name: 'Color',
-      icon: Icons.palette,
-      filters: [
-        FilterItem(
-            id: 'brightness',
-            name: 'Brightness',
-            type: FilterType.slider,
-            value: 0.0,
-            min: -1.0,
-            max: 1.0),
-        FilterItem(
-            id: 'contrast',
-            name: 'Contrast',
-            type: FilterType.slider,
-            value: 1.0,
-            min: 0.0,
-            max: 2.0),
-        FilterItem(
-            id: 'temperature',
-            name: 'Warmth',
-            type: FilterType.slider,
-            value: 5000.0,
-            min: 2000.0,
-            max: 8000.0),
-      ],
-    ),
-    FilterCategory(
-      name: 'HSB',
-      icon: Icons.tune,
-      filters: [
-        FilterItem(
-            id: 'hsb_hue',
-            name: 'Hue',
-            type: FilterType.slider,
-            value: 0.0,
-            min: -360.0,
-            max: 360.0),
-        FilterItem(
-            id: 'hsb_saturation',
-            name: 'Saturation',
-            type: FilterType.slider,
-            value: 1.0,
-            min: 0.0,
-            max: 2.0),
-        FilterItem(
-            id: 'hsb_brightness',
-            name: 'Brightness',
-            type: FilterType.slider,
-            value: 1.0,
-            min: 0.0,
-            max: 2.0),
-      ],
-    ),
-    // Added "Cloud" category
-    FilterCategory(
-      name: 'Cloud',
-      icon: Icons.cloud_queue,
-      filters: [],
-    ),
-  ];
-
+  // Filter state
+  bool _isCloudFiltersLoading = false;
   int _selectedCategoryIndex = 0;
   FilterItem? _activeFilter;
+  
+
+  // Filter categories with pre-defined filters
+  late final List<FilterCategory> _categories;
 
   // UI Controllers
   late AnimationController _recordButtonController;
@@ -148,6 +50,163 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   @override
   void initState() {
     super.initState();
+    _initializeCategories();
+    _setupAnimationControllers();
+    _configureCameraForFirstUse();
+    _loadFiltersInBackground();
+  }
+
+  /// Configure camera when user first opens camera screen
+  Future<void> _configureCameraForFirstUse() async {
+    try {
+      // Configure camera for front-facing position (typical for beauty filters)
+      await _nosmai.configureCamera(position: NosmaiCameraPosition.front);
+      // Start processing for immediate camera availability
+      await _nosmai.startProcessing();
+    } catch (e) {
+      debugPrint('Error configuring camera: $e');
+    }
+  }
+
+  /// Initialize filter categories with default values
+  void _initializeCategories() {
+    _categories = [
+      FilterCategory(
+        name: 'Effects',
+        icon: Icons.auto_awesome,
+        filters: [],
+      ),
+      FilterCategory(
+        name: 'Beauty',
+        icon: Icons.face_retouching_natural,
+        filters: _createBeautyFilters(),
+      ),
+      FilterCategory(
+        name: 'Color',
+        icon: Icons.palette,
+        filters: _createColorFilters(),
+      ),
+      FilterCategory(
+        name: 'HSB',
+        icon: Icons.tune,
+        filters: _createHSBFilters(),
+      ),
+      FilterCategory(
+        name: 'Cloud',
+        icon: Icons.cloud_queue,
+        filters: [],
+      ),
+    ];
+  }
+
+  /// Create beauty filter items
+  List<FilterItem> _createBeautyFilters() {
+    return [
+      FilterItem(
+        id: 'skin_smoothing',
+        name: 'Smooth',
+        type: FilterType.slider,
+        value: 0.0,
+        min: 0.0,
+        max: 10.0,
+      ),
+      FilterItem(
+        id: 'skin_whitening',
+        name: 'Brighten',
+        type: FilterType.slider,
+        value: 0.0,
+        min: 0.0,
+        max: 10.0,
+      ),
+      FilterItem(
+        id: 'face_slimming',
+        name: 'Slim Face',
+        type: FilterType.slider,
+        value: 0.0,
+        min: 0.0,
+        max: 10.0,
+      ),
+      FilterItem(
+        id: 'eye_enlargement',
+        name: 'Big Eyes',
+        type: FilterType.slider,
+        value: 0.0,
+        min: 0.0,
+        max: 10.0,
+      ),
+      FilterItem(
+        id: 'nose_size',
+        name: 'Nose Size',
+        type: FilterType.slider,
+        value: 50.0,
+        min: 0.0,
+        max: 100.0,
+      ),
+    ];
+  }
+
+  /// Create color filter items
+  List<FilterItem> _createColorFilters() {
+    return [
+      FilterItem(
+        id: 'brightness',
+        name: 'Brightness',
+        type: FilterType.slider,
+        value: 0.0,
+        min: -1.0,
+        max: 1.0,
+      ),
+      FilterItem(
+        id: 'contrast',
+        name: 'Contrast',
+        type: FilterType.slider,
+        value: 1.0,
+        min: 0.0,
+        max: 2.0,
+      ),
+      FilterItem(
+        id: 'temperature',
+        name: 'Warmth',
+        type: FilterType.slider,
+        value: 5000.0,
+        min: 2000.0,
+        max: 8000.0,
+      ),
+    ];
+  }
+
+  /// Create HSB filter items
+  List<FilterItem> _createHSBFilters() {
+    return [
+      FilterItem(
+        id: 'hsb_hue',
+        name: 'Hue',
+        type: FilterType.slider,
+        value: 0.0,
+        min: -360.0,
+        max: 360.0,
+      ),
+      FilterItem(
+        id: 'hsb_saturation',
+        name: 'Saturation',
+        type: FilterType.slider,
+        value: 1.0,
+        min: 0.0,
+        max: 2.0,
+      ),
+      FilterItem(
+        id: 'hsb_brightness',
+        name: 'Brightness',
+        type: FilterType.slider,
+        value: 1.0,
+        min: 0.0,
+        max: 2.0,
+      ),
+    ];
+  }
+
+  /// Setup animation controllers
+  void _setupAnimationControllers() {
     _recordButtonController = AnimationController(
       duration: const Duration(milliseconds: 200),
       vsync: this,
@@ -156,23 +215,12 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    
-    // Load filters in background, no camera setup needed
-    _loadFiltersInBackground();
   }
 
   Future<void> _loadEffectFilters() async {
     try {
-      // Use cached filters if available and recent
-      if (_cachedEffectFilters != null && _lastCacheTime != null && 
-          DateTime.now().difference(_lastCacheTime!).inMinutes < 5) {
-        setState(() {
-          _categories[0].filters = _cachedEffectFilters!;
-        });
-        return;
-      }
-
-      final filters = await _nosmai.fetchFiltersAndEffectsFromAllSources();
+      final filters = await _nosmai.getFilters();
+      
       final effectFilters = <FilterItem>[];
 
       for (final filter in filters) {
@@ -186,19 +234,18 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
         }
       }
 
-      // Cache the filters
-      _cachedEffectFilters = effectFilters;
-      _lastCacheTime = DateTime.now();
-
       setState(() {
         _categories[0].filters = effectFilters;
       });
     } catch (e) {
-      // Error loading effect filters
+      debugPrint('Error loading effect filters: $e');
     }
   }
 
-  /// This method now logs the response from the SDK.
+  /// Load cloud filters from the SDK
+  /// 
+  /// This method fetches available cloud filters and logs the response for debugging.
+  /// Empty results are normal and don't indicate an error.
   Future<void> _loadCloudFilters() async {
     if (_isCloudFiltersLoading) return;
 
@@ -211,53 +258,65 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
 
       if (filters.isEmpty) {
         debugPrint('ℹ️ No cloud filters available - may be due to network issues or license restrictions');
-        // Don't show error to user for empty results - this is normal
       } else {
-        // Log the raw response to the console
-        debugPrint('--- Fetched Cloud Filters Response ---');
-        debugPrint('Found ${filters.length} cloud filters');
-        for (final filter in filters) {
-          debugPrint(filter.toMap().toString());
-        }
-        debugPrint('------------------------------------');
+        _logCloudFiltersResponse(filters);
       }
 
-      final cloudEffectFilters = <FilterItem>[];
-
-      for (final filter in filters) {
-        cloudEffectFilters.add(FilterItem(
-          id: filter.id,
-          name: filter.displayName,
-          type: FilterType.effect,
-          path: filter.path, // Path is null if not downloaded
-        ));
-      }
-
-      setState(() {
-        final cloudCategoryIndex =
-            _categories.indexWhere((cat) => cat.name == 'Cloud');
-        if (cloudCategoryIndex != -1) {
-          _categories[cloudCategoryIndex].filters = cloudEffectFilters;
-        }
-      });
+      final cloudEffectFilters = _createCloudFilterItems(filters);
+      _updateCloudFiltersInUI(cloudEffectFilters);
     } catch (e) {
       debugPrint('⚠️ Cloud filters error: $e');
-      // Only show user-facing error for actual exceptions, not empty results
-      if (mounted && e.toString().contains('PlatformException')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cloud filters temporarily unavailable'),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      _handleCloudFiltersError(e);
     } finally {
       if (mounted) {
         setState(() {
           _isCloudFiltersLoading = false;
         });
       }
+    }
+  }
+
+  /// Log cloud filters response for debugging
+  void _logCloudFiltersResponse(List<dynamic> filters) {
+    debugPrint('--- Fetched Cloud Filters Response ---');
+    debugPrint('Found ${filters.length} cloud filters');
+    for (final filter in filters) {
+      debugPrint(filter.toMap().toString());
+    }
+    debugPrint('------------------------------------');
+  }
+
+  /// Create FilterItem objects from cloud filters
+  List<FilterItem> _createCloudFilterItems(List<dynamic> filters) {
+    return filters.map((filter) => FilterItem(
+      id: filter.id,
+      name: filter.displayName,
+      type: FilterType.effect,
+      path: filter.path, // Path is null if not downloaded
+    )).toList();
+  }
+
+  /// Update cloud filters in the UI
+  void _updateCloudFiltersInUI(List<FilterItem> cloudFilters) {
+    setState(() {
+      final cloudCategoryIndex = _categories.indexWhere((cat) => cat.name == 'Cloud');
+      if (cloudCategoryIndex != -1) {
+        _categories[cloudCategoryIndex].filters = cloudFilters;
+      }
+    });
+  }
+
+  /// Handle cloud filters loading errors
+  void _handleCloudFiltersError(dynamic error) {
+    // Only show user-facing error for actual exceptions, not empty results
+    if (mounted && error.toString().contains('PlatformException')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cloud filters temporarily unavailable'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -269,9 +328,12 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   /// Verify camera is truly ready (quick check)
   // Method removed - was unused
 
-  /// Load filters in background without blocking camera
+  /// Load filters in background without blocking the UI
+  /// 
+  /// This method loads both effect and cloud filters asynchronously to avoid
+  /// blocking the camera interface during startup.
   Future<void> _loadFiltersInBackground() async {
-    // Load filters in background without blocking UI
+    // Load effect filters in background
     Future.microtask(() async {
       await _loadEffectFilters();
     });
@@ -530,30 +592,23 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   }
 
   Future<void> _switchCamera() async {
-    // Throttle camera switching to prevent crashes
-    final now = DateTime.now();
-    if (_isCameraSwitching || 
-        (_lastSwitchTime != null && now.difference(_lastSwitchTime!).inMilliseconds < 1000)) {
-      debugPrint('Camera switch throttled - too frequent');
-      return;
-    }
-
-    setState(() {
-      _isCameraSwitching = true;
-      _isFrontCamera = !_isFrontCamera;
-    });
-    
-    _lastSwitchTime = now;
-    
     try {
-      // Use retry mechanism for camera switching
-      await NosmaiRetryManager.executeWithRetry(
-        () => _nosmai.switchCamera(),
-        maxRetries: 2,
-        shouldRetry: (error) => error is NosmaiError && 
-                              error.type == NosmaiErrorType.cameraSwitchFailed,
-      );
-      debugPrint('✅ Camera switched successfully to ${_isFrontCamera ? 'front' : 'back'}');
+      // Check if SDK is still initialized
+      if (!_nosmai.isInitialized) {
+        debugPrint('❌ SDK not initialized, cannot switch camera');
+        return;
+      }
+      
+      final switched = await _nosmai.switchCamera();
+      
+      if (switched) {
+        setState(() {
+          _isFrontCamera = !_isFrontCamera;
+        });
+        debugPrint('✅ Camera switched successfully to ${_isFrontCamera ? 'front' : 'back'}');
+      } else {
+        debugPrint('🔄 Camera switch throttled - ignored rapid tap');
+      }
     } catch (e) {
       debugPrint('❌ Camera switch failed: $e');
       
@@ -563,15 +618,6 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
       } else {
         _showErrorMessage('Camera switch failed: ${e.toString()}');
       }
-      
-      // Revert camera state on error
-      setState(() {
-        _isFrontCamera = !_isFrontCamera;
-      });
-    } finally {
-      setState(() {
-        _isCameraSwitching = false;
-      });
     }
   }
 
@@ -910,10 +956,10 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                       Row(
                         children: [
                           _buildIconButton(
-                            icon: _isCameraSwitching 
+                            icon: NosmaiFlutter.isCameraSwitching 
                                 ? Icons.hourglass_empty_rounded 
                                 : Icons.flip_camera_ios_rounded,
-                            onTap: _isCameraSwitching ? null : _switchCamera,
+                            onTap: NosmaiFlutter.isCameraSwitching ? null : _switchCamera,
                           ),
                           const SizedBox(width: 12),
                           _buildIconButton(

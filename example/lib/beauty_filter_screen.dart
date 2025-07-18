@@ -1,7 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
-import 'nosmai_app_manager.dart';
 
+/// Dedicated screen for beauty filters and color adjustments
+/// 
+/// This screen demonstrates advanced filter capabilities including:
+/// - Real-time beauty filters (skin smoothing, whitening, face slimming)
+/// - Color adjustments (brightness, contrast, RGB)
+/// - Effect filters (sharpening, hue, white balance)
+/// - HSB (Hue, Saturation, Brightness) controls
+/// - Organized category-based interface
+/// 
+/// The screen uses a tabbed interface to organize different filter types
+/// and provides real-time preview of all adjustments.
 class BeautyFilterScreen extends StatefulWidget {
   const BeautyFilterScreen({super.key});
 
@@ -10,7 +20,11 @@ class BeautyFilterScreen extends StatefulWidget {
 }
 
 class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
-  final NosmaiFlutter _nosmai = NosmaiAppManager.instance.nosmai;
+  final NosmaiFlutter _nosmai = NosmaiFlutter.instance;
+
+  // Initialization state
+  bool _isInitialized = false;
+  String _selectedCategory = 'beauty';
 
   // Beauty filter values
   double _skinSmoothing = 0.0;
@@ -18,16 +32,18 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
   double _faceSlimming = 0.0;
   double _eyeEnlargement = 0.0;
   double _noseSize = 50.0;
+
+  // Color adjustment values
   double _brightness = 0.0;
   double _contrast = 1.0;
   double _sharpening = 0.0;
 
-  // RGB values
+  // RGB color values
   double _redValue = 1.0;
   double _greenValue = 1.0;
   double _blueValue = 1.0;
 
-  // Other filters
+  // Effect filter values
   double _hueAngle = 0.0;
   double _temperature = 5000.0; // Normal color temperature
   double _tint = 0.0;
@@ -37,8 +53,29 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
   double _hsbSaturation = 1.0;
   double _hsbBrightness = 1.0; // 1.0 is normal, not 0.0!
 
-  bool _isInitialized = false;
-  String _selectedCategory = 'beauty';
+  // Filter category configuration
+  static const List<FilterCategory> _filterCategories = [
+    FilterCategory(
+      id: 'beauty',
+      label: 'Beauty',
+      icon: Icons.face,
+    ),
+    FilterCategory(
+      id: 'color',
+      label: 'Color',
+      icon: Icons.palette,
+    ),
+    FilterCategory(
+      id: 'effect',
+      label: 'Effects',
+      icon: Icons.auto_awesome,
+    ),
+    FilterCategory(
+      id: 'hsb',
+      label: 'HSB',
+      icon: Icons.tune,
+    ),
+  ];
 
   @override
   void initState() {
@@ -46,6 +83,11 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
     _initializeCamera();
   }
 
+  /// Initialize camera for beauty filter screen
+  /// 
+  /// Configures the camera with front-facing position (typical for beauty filters)
+  /// and starts processing. Face detection is automatically enabled when beauty
+  /// filters are used.
   Future<void> _initializeCamera() async {
     try {
       // Configure camera if not already done
@@ -66,7 +108,11 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
     }
   }
 
-  void _applyBeautyFilters() async {
+  /// Apply all beauty filters with current values
+  /// 
+  /// This method applies all beauty enhancement filters including skin smoothing,
+  /// whitening, face slimming, eye enlargement, and nose size adjustment.
+  Future<void> _applyBeautyFilters() async {
     try {
       await _nosmai.applySkinSmoothing(_skinSmoothing);
       await _nosmai.applySkinWhitening(_skinWhitening);
@@ -78,7 +124,11 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
     }
   }
 
-  void _applyColorFilters() async {
+  /// Apply color adjustment filters
+  /// 
+  /// This method applies brightness, contrast, and RGB color adjustments
+  /// to enhance the overall color appearance of the video feed.
+  Future<void> _applyColorFilters() async {
     try {
       await _nosmai.applyBrightnessFilter(_brightness);
       await _nosmai.applyContrastFilter(_contrast);
@@ -92,7 +142,11 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
     }
   }
 
-  void _applyEffectFilters() async {
+  /// Apply effect filters
+  /// 
+  /// This method applies various effect filters including sharpening,
+  /// hue adjustment, and white balance correction.
+  Future<void> _applyEffectFilters() async {
     try {
       await _nosmai.applySharpening(_sharpening);
       await _nosmai.applyHue(_hueAngle);
@@ -105,7 +159,11 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
     }
   }
 
-  void _applyHSBFilters() async {
+  /// Apply HSB (Hue, Saturation, Brightness) filters
+  /// 
+  /// This method applies HSB adjustments. Note that hue adjustment is handled
+  /// separately since it's not implemented in the HSB filter directly.
+  Future<void> _applyHSBFilters() async {
     try {
       // Reset HSB first since adjustments are additive
       await _nosmai.resetHSBFilter();
@@ -129,31 +187,13 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
     }
   }
 
-  void _resetAllFilters() async {
+  /// Reset all filters to their default values
+  /// 
+  /// This method resets all filter values to their defaults and removes
+  /// any applied filters from the SDK.
+  Future<void> _resetAllFilters() async {
     setState(() {
-      // Beauty filters
-      _skinSmoothing = 0.0;
-      _skinWhitening = 0.0;
-      _faceSlimming = 0.0;
-      _eyeEnlargement = 0.0;
-
-      // Color filters
-      _brightness = 0.0;
-      _contrast = 1.0;
-      _redValue = 1.0;
-      _greenValue = 1.0;
-      _blueValue = 1.0;
-
-      // Effect filters
-      _sharpening = 0.0;
-      _hueAngle = 0.0;
-      _temperature = 5000.0;
-      _tint = 0.0;
-
-      // HSB filters
-      _hsbHue = 0.0;
-      _hsbSaturation = 1.0;
-      _hsbBrightness = 1.0;
+      _resetFilterValues();
     });
 
     try {
@@ -162,6 +202,34 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
     } catch (e) {
       debugPrint('Error resetting filters: $e');
     }
+  }
+
+  /// Reset all filter values to defaults
+  void _resetFilterValues() {
+    // Beauty filters
+    _skinSmoothing = 0.0;
+    _skinWhitening = 0.0;
+    _faceSlimming = 0.0;
+    _eyeEnlargement = 0.0;
+    _noseSize = 50.0;
+
+    // Color filters
+    _brightness = 0.0;
+    _contrast = 1.0;
+    _redValue = 1.0;
+    _greenValue = 1.0;
+    _blueValue = 1.0;
+
+    // Effect filters
+    _sharpening = 0.0;
+    _hueAngle = 0.0;
+    _temperature = 5000.0;
+    _tint = 0.0;
+
+    // HSB filters
+    _hsbHue = 0.0;
+    _hsbSaturation = 1.0;
+    _hsbBrightness = 1.0;
   }
 
   Widget _buildCategoryChip(String category, String label, IconData icon) {
@@ -487,16 +555,12 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
                       child: Row(
-                        children: [
-                          _buildCategoryChip('beauty', 'Beauty', Icons.face),
-                          const SizedBox(width: 8),
-                          _buildCategoryChip('color', 'Color', Icons.palette),
-                          const SizedBox(width: 8),
-                          _buildCategoryChip(
-                              'effect', 'Effects', Icons.auto_awesome),
-                          const SizedBox(width: 8),
-                          _buildCategoryChip('hsb', 'HSB', Icons.tune),
-                        ],
+                        children: _filterCategories.map((category) {
+                          return [
+                            _buildCategoryChip(category.id, category.label, category.icon),
+                            if (category != _filterCategories.last) const SizedBox(width: 8),
+                          ];
+                        }).expand((widgets) => widgets).toList(),
                       ),
                     ),
 
@@ -538,4 +602,17 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
     // Don't cleanup SDK - let app manager handle it
     super.dispose();
   }
+}
+
+/// Filter category configuration class
+class FilterCategory {
+  final String id;
+  final String label;
+  final IconData icon;
+
+  const FilterCategory({
+    required this.id,
+    required this.label,
+    required this.icon,
+  });
 }

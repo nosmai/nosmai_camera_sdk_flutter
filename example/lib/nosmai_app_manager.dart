@@ -1,22 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
 
-/// Singleton manager for Nosmai SDK to ensure it's initialized only once
+/// Singleton manager for Nosmai SDK lifecycle management
+/// 
+/// This class ensures the Nosmai SDK is properly initialized once for the entire
+/// application and provides centralized access to the SDK instance. It handles
+/// initialization, error states, and performance optimizations like camera pre-warming.
+/// 
+/// Example usage:
+/// ```dart
+/// // Initialize the SDK
+/// final success = await NosmaiAppManager.instance.initialize('your_api_key');
+/// if (success) {
+///   // Use the SDK
+///   final nosmai = NosmaiAppManager.instance.nosmai;
+/// }
+/// ```
 class NosmaiAppManager {
+  /// Private constructor for singleton pattern
+  NosmaiAppManager._internal();
+  
+  /// Singleton instance
   static final NosmaiAppManager _instance = NosmaiAppManager._internal();
+  
+  /// Get the singleton instance
   static NosmaiAppManager get instance => _instance;
 
-  NosmaiAppManager._internal();
-
+  /// Internal SDK instance
   final NosmaiFlutter _nosmai = NosmaiFlutter.instance;
+  
+  /// Initialization state
   bool _isInitialized = false;
+  
+  /// Error message if initialization failed
   String? _initError;
 
+  /// Get the Nosmai SDK instance
+  /// 
+  /// Only use this after successful initialization
   NosmaiFlutter get nosmai => _nosmai;
+  
+  /// Check if SDK is initialized
   bool get isInitialized => _isInitialized;
+  
+  /// Get initialization error if any
   String? get initError => _initError;
 
-  /// Initialize the SDK once for the entire app
+  /// Initialize the Nosmai SDK with the provided license key
+  /// 
+  /// This method ensures the SDK is initialized only once. If already initialized,
+  /// it returns true immediately. After successful initialization, it automatically
+  /// pre-warms the camera for better performance.
+  /// 
+  /// [licenseKey] - Your Nosmai API license key
+  /// 
+  /// Returns true if initialization was successful, false otherwise.
+  /// Check [initError] for error details on failure.
   Future<bool> initialize(String licenseKey) async {
     if (_isInitialized) {
       debugPrint('✅ Nosmai SDK already initialized');
@@ -49,9 +88,12 @@ class NosmaiAppManager {
     }
   }
 
-  /// Pre-warm the camera for faster startup (similar to TikTok)
+  /// Pre-warm the camera for faster startup
+  /// 
+  /// This optimization technique pre-configures the camera and starts processing
+  /// immediately after SDK initialization, resulting in faster camera startup times
+  /// similar to popular social media apps like TikTok.
   void _prewarmCamera() {
-    // Pre-configure camera immediately after SDK initialization
     Future.microtask(() async {
       try {
         final stopwatch = Stopwatch()..start();
@@ -83,6 +125,9 @@ class NosmaiAppManager {
   }
 
   /// Pre-load essential filters for faster access
+  /// 
+  /// This method pre-loads local filters in the background to improve
+  /// performance when users first access the filter interface.
   void _preloadEssentialFilters() {
     Future.microtask(() async {
       try {
@@ -95,7 +140,10 @@ class NosmaiAppManager {
     });
   }
 
-  /// Call this only when the app is terminating
+  /// Clean up the SDK resources
+  /// 
+  /// Call this method only when the app is terminating to properly
+  /// dispose of SDK resources and prevent memory leaks.
   Future<void> cleanup() async {
     if (_isInitialized) {
       await _nosmai.cleanup();

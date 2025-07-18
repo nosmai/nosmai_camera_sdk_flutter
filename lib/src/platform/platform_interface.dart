@@ -145,9 +145,9 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
     throw UnimplementedError('saveVideoToGallery() has not been implemented.');
   }
 
-  /// Clear filter cache to force refresh
-  Future<void> clearFilterCache() {
-    throw UnimplementedError('clearFilterCache() has not been implemented.');
+  /// Clear filter cache
+  Future<void> clearCache() {
+    throw UnimplementedError('clearCache() has not been implemented.');
   }
 
   /// Detach camera from current view (for navigation cleanup)
