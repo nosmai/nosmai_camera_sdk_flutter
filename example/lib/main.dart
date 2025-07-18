@@ -65,24 +65,23 @@ class HomePage extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF1A1A1A),
-              Color(0xFF0A0A0A),
-            ],
+            colors: [Color(0xFF1A1A1A), Color(0xFF0A0A0A)],
           ),
         ),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: EdgeInsets.symmetric(
               horizontal: screenWidth * 0.06,
-              vertical:
-                  isVerySmallScreen ? 12.0 : (isSmallScreen ? 16.0 : 24.0),
+              vertical: isVerySmallScreen
+                  ? 12.0
+                  : (isSmallScreen ? 16.0 : 24.0),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 SizedBox(
-                    height: isVerySmallScreen ? 16 : (isSmallScreen ? 20 : 30)),
+                  height: isVerySmallScreen ? 16 : (isSmallScreen ? 20 : 30),
+                ),
 
                 // App Logo/Icon
                 Container(
@@ -150,22 +149,27 @@ class HomePage extends StatelessWidget {
                         pageBuilder: (context, animation, secondaryAnimation) =>
                             const UnifiedCameraScreen(),
                         transitionDuration: const Duration(
-                            milliseconds: 100), // Fast transition
-                        reverseTransitionDuration:
-                            const Duration(milliseconds: 100),
+                          milliseconds: 100,
+                        ), // Fast transition
+                        reverseTransitionDuration: const Duration(
+                          milliseconds: 100,
+                        ),
                         transitionsBuilder:
                             (context, animation, secondaryAnimation, child) {
-                          return FadeTransition(
-                              opacity: animation, child: child);
-                        },
+                              return FadeTransition(
+                                opacity: animation,
+                                child: child,
+                              );
+                            },
                       ),
                     );
                   },
                   child: Container(
                     width: double.infinity,
                     constraints: BoxConstraints(
-                      maxWidth:
-                          screenWidth * 0.8 > 300 ? 300 : screenWidth * 0.8,
+                      maxWidth: screenWidth * 0.8 > 300
+                          ? 300
+                          : screenWidth * 0.8,
                     ),
                     height: isSmallScreen ? 48 : 56,
                     decoration: BoxDecoration(
@@ -298,8 +302,9 @@ class HomePage extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding:
-            EdgeInsets.all(isVerySmallScreen ? 8 : (isSmallScreen ? 10 : 14)),
+        padding: EdgeInsets.all(
+          isVerySmallScreen ? 8 : (isSmallScreen ? 10 : 14),
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
