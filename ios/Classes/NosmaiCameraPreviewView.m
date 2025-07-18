@@ -9,13 +9,90 @@
 
 @implementation NosmaiNativePreviewView
 
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        // Ensure the view can handle device rotations and size changes
+        self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        
+        // Set up notifications for orientation changes
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(orientationDidChange:)
+                                                     name:UIDeviceOrientationDidChangeNotification
+                                                   object:nil];
+    }
+    return self;
+}
+
 - (void)layoutSubviews {
     [super layoutSubviews];
     
-    // The camera preview layer frame should be automatically updated by the SDK
-    // when attachToView is called, which happens during initial setup.
-    // We don't need to manually update it here since the SDK handles frame management.
+    // Ensure we're on the main thread for UI updates
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self layoutSubviews];
+        });
+        return;
+    }
+    
+    // Force the camera preview to fill the entire view bounds
+    // This ensures proper scaling on all device sizes
+    NosmaiCore* core = [NosmaiCore shared];
+    if (core && core.isInitialized && core.camera) {
+        // Update all sublayers to fill the bounds
+        for (CALayer* layer in self.layer.sublayers) {
+            // Set the layer frame to match the view bounds exactly
+            layer.frame = self.bounds;
+            
+            // Use aspect fill to ensure full coverage without letterboxing
+            layer.contentsGravity = kCAGravityResizeAspectFill;
+            
+            // Ensure the layer is properly positioned
+            layer.position = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
+            
+            // Enable bounds clipping to prevent overflow
+            layer.masksToBounds = YES;
+            
+            // Force the layer to update its display
+            [layer setNeedsDisplay];
+        }
+        
+        // Force resize of all NosmaiView subviews
+        for (UIView* subview in self.subviews) {
+            if ([subview isKindOfClass:NSClassFromString(@"NosmaiView")]) {
+                subview.frame = self.bounds;
+                subview.layer.contentsGravity = kCAGravityResizeAspectFill;
+                subview.layer.masksToBounds = YES;
+                subview.contentMode = UIViewContentModeScaleAspectFill;
+                
+                // Force all sublayers to also scale to fill
+                for (CALayer* layer in subview.layer.sublayers) {
+                    layer.frame = subview.bounds;
+                    layer.contentsGravity = kCAGravityResizeAspectFill;
+                    layer.masksToBounds = YES;
+                    [layer setNeedsDisplay];
+                }
+                
+                [subview setNeedsLayout];
+                [subview layoutIfNeeded];
+                NSLog(@"📐 Force resized NosmaiView in layout to: %@ (sublayers: %lu)", NSStringFromCGRect(subview.frame), (unsigned long)subview.layer.sublayers.count);
+            }
+        }
+    }
+    
     NSLog(@"📐 NosmaiNativePreviewView layout updated with bounds: %@", NSStringFromCGRect(self.bounds));
+}
+
+- (void)orientationDidChange:(NSNotification*)notification {
+    // Force layout update when device orientation changes
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self setNeedsLayout];
+        [self layoutIfNeeded];
+    });
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 @end
@@ -48,24 +125,98 @@
         // Create the native view that will host the camera preview
         CGRect adjustedFrame = frame;
         
-        // Use screen bounds for full-screen when frame is zero or very small
-        if (CGRectEqualToRect(frame, CGRectZero) || frame.size.width < 100 || frame.size.height < 100) {
+        // Parse creation parameters from Flutter
+        NSDictionary* creationParams = (NSDictionary*)args;
+        CGFloat requestedWidth = 0;
+        CGFloat requestedHeight = 0;
+        NSString* deviceType = @"phone";
+        BOOL hasNotch = NO;
+        BOOL hasBottomSafeArea = NO;
+        CGFloat safeAreaTop = 0;
+        CGFloat safeAreaBottom = 0;
+        
+        if (creationParams) {
+            if (creationParams[@"width"]) {
+                requestedWidth = [creationParams[@"width"] doubleValue];
+            }
+            if (creationParams[@"height"]) {
+                requestedHeight = [creationParams[@"height"] doubleValue];
+            }
+            if (creationParams[@"deviceType"]) {
+                deviceType = creationParams[@"deviceType"];
+                hasNotch = [deviceType containsString:@"_notch"];
+                hasBottomSafeArea = [deviceType containsString:@"_bottom"];
+            }
+            if (creationParams[@"safeAreaTop"]) {
+                safeAreaTop = [creationParams[@"safeAreaTop"] doubleValue];
+            }
+            if (creationParams[@"safeAreaBottom"]) {
+                safeAreaBottom = [creationParams[@"safeAreaBottom"] doubleValue];
+            }
+        }
+        
+        // Always use device screen bounds for full-screen coverage
+        UIWindow* keyWindow = [UIApplication sharedApplication].keyWindow;
+        if (keyWindow) {
+            // Use the full screen bounds, not the safe area bounds
+            adjustedFrame = keyWindow.screen.bounds;
+        } else {
+            // Fallback to main screen bounds
             adjustedFrame = [UIScreen mainScreen].bounds;
+        }
+        
+        // Log the decision
+        if (requestedWidth > 0 && requestedHeight > 0) {
+            NSLog(@"📱 Flutter requested: %.0f x %.0f, but using device bounds: %.0f x %.0f for full-screen coverage", 
+                  requestedWidth, requestedHeight, adjustedFrame.size.width, adjustedFrame.size.height);
         }
         
         _nativeView = [[NosmaiNativePreviewView alloc] initWithFrame:adjustedFrame];
         _nativeView.backgroundColor = [UIColor blackColor];
         _nativeView.layer.masksToBounds = YES;
         _nativeView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        
+        // Use ScaleAspectFill to ensure full coverage without letterboxing
         _nativeView.contentMode = UIViewContentModeScaleAspectFill;
         
-        // Set content scaling mode for better full-screen display
+        // Set content scaling mode for full-screen display (no letterboxing)
         _nativeView.layer.contentsGravity = kCAGravityResizeAspectFill;
         
-        NSLog(@"📱 NosmaiCameraPreviewView created with frame: %@ (viewId: %lld)", NSStringFromCGRect(adjustedFrame), viewId);
+        // Ensure the view is properly configured for OpenGL rendering
+        _nativeView.opaque = YES;
+        _nativeView.clearsContextBeforeDrawing = NO;
         
-        // Setup camera preview safely with state-based waiting
-        [self setupCameraPreviewWithStateCheck];
+        // Set up proper layer configuration for high-performance rendering
+        _nativeView.layer.opaque = YES;
+        _nativeView.layer.drawsAsynchronously = NO; // Disable async drawing to reduce thread issues
+        
+        // Ensure the view extends to all edges (including safe areas)
+        _nativeView.clipsToBounds = YES;
+        _nativeView.insetsLayoutMarginsFromSafeArea = NO;
+        
+        // Log device screen information for comparison
+        CGRect screenBounds = [UIScreen mainScreen].bounds;
+        CGSize screenSize = screenBounds.size;
+        UIEdgeInsets safeAreaInsets = UIEdgeInsetsZero;
+        
+        if (@available(iOS 11.0, *)) {
+            UIWindow* keyWindow = [UIApplication sharedApplication].keyWindow;
+            if (keyWindow) {
+                safeAreaInsets = keyWindow.safeAreaInsets;
+            }
+        }
+        
+        NSLog(@"📱 NosmaiCameraPreviewView created with frame: %@ (viewId: %lld, deviceType: %@, safeAreaTop: %.1f, safeAreaBottom: %.1f)", 
+              NSStringFromCGRect(adjustedFrame), viewId, deviceType, safeAreaTop, safeAreaBottom);
+        NSLog(@"📱 Device screen bounds: %@ (%.0f x %.0f)", NSStringFromCGRect(screenBounds), screenSize.width, screenSize.height);
+        NSLog(@"📱 Device safe area insets: top=%.1f, bottom=%.1f, left=%.1f, right=%.1f", 
+              safeAreaInsets.top, safeAreaInsets.bottom, safeAreaInsets.left, safeAreaInsets.right);
+        NSLog(@"📱 Our view size: %.0f x %.0f vs Device screen: %.0f x %.0f - Match: %@", 
+              adjustedFrame.size.width, adjustedFrame.size.height, screenSize.width, screenSize.height,
+              (adjustedFrame.size.width == screenSize.width && adjustedFrame.size.height == screenSize.height) ? @"YES" : @"NO");
+        
+        // Setup camera preview immediately since SDK is pre-warmed
+        [self performCameraAttachment];
     }
     return self;
 }
@@ -141,18 +292,22 @@
             NSLog(@"🔄 Detaching from previous view before reattaching");
             [core.camera detachFromView];
             self.isAttached = NO;
-            
-            // Wait a moment for detachment to complete
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                [self attachCameraToView];
-            });
-        } else {
-            [self attachCameraToView];
         }
+        
+        // Attach immediately without delay
+        [self attachCameraToView];
     });
 }
 
 - (void)attachCameraToView {
+    // Ensure camera attachment happens on main thread
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self attachCameraToView];
+        });
+        return;
+    }
+    
     NosmaiCore* core = [NosmaiCore shared];
     
     // Reset graceful detach flag
@@ -165,11 +320,38 @@
     [core.camera attachToView:self->_nativeView];
     self.isAttached = YES;
     
+    // Force the camera to use full-screen aspect ratio
+    if (core.camera && [core.camera respondsToSelector:@selector(setVideoGravity:)]) {
+        [core.camera performSelector:@selector(setVideoGravity:) withObject:@"AVLayerVideoGravityResizeAspectFill"];
+        NSLog(@"📐 Set camera video gravity to aspect fill");
+    }
+    
     NSLog(@"📺 Camera attached to preview view (frame: %@)", NSStringFromCGRect(self->_nativeView.frame));
     
-    // Force layout update
+    // Configure the native view for full-screen display
+    self->_nativeView.layer.contentsGravity = kCAGravityResizeAspectFill;
+    self->_nativeView.layer.masksToBounds = YES;
+    
+    // Force layout update to ensure proper display on all device sizes
     [self->_nativeView setNeedsLayout];
     [self->_nativeView layoutIfNeeded];
+    
+    // Add a delayed update to force the NosmaiView to resize properly
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self forceNosmaiViewResize];
+        
+        // Force another layout update
+        [self->_nativeView setNeedsLayout];
+        [self->_nativeView layoutIfNeeded];
+    });
+    
+    // Add another delayed update to ensure the SDK doesn't reset our layout
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self forceNosmaiViewResize];
+        NSLog(@"📐 Secondary resize enforcement completed");
+    });
+    
+    NSLog(@"📐 Native view configured with frame: %@", NSStringFromCGRect(self->_nativeView.frame));
     
     // Reset setup state
     dispatch_semaphore_wait(self.setupSemaphore, DISPATCH_TIME_FOREVER);
@@ -192,6 +374,57 @@
 
 - (UIView*)view {
     return _nativeView;
+}
+
+- (void)updateViewBounds:(CGRect)bounds {
+    // Update the native view bounds for dynamic resizing on main thread
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self->_nativeView.frame = bounds;
+        
+        // Force full layout update for new bounds
+        [self->_nativeView setNeedsLayout];
+        [self->_nativeView layoutIfNeeded];
+        
+        // Update layer properties for new frame
+        self->_nativeView.layer.contentsGravity = kCAGravityResizeAspectFill;
+        self->_nativeView.layer.masksToBounds = YES;
+        
+        NSLog(@"📐 Updated camera view bounds to: %@", NSStringFromCGRect(bounds));
+        
+        // Force resize of all NosmaiView subviews
+        [self forceNosmaiViewResize];
+        
+        // Additional delayed update for complex layout changes
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self->_nativeView setNeedsLayout];
+            [self->_nativeView layoutIfNeeded];
+            [self forceNosmaiViewResize];
+        });
+    });
+}
+
+- (void)forceNosmaiViewResize {
+    // Force resize of all NosmaiView instances to fill the entire bounds
+    for (UIView* subview in self->_nativeView.subviews) {
+        if ([subview isKindOfClass:NSClassFromString(@"NosmaiView")]) {
+            subview.frame = self->_nativeView.bounds;
+            subview.layer.contentsGravity = kCAGravityResizeAspectFill;
+            subview.layer.masksToBounds = YES;
+            subview.contentMode = UIViewContentModeScaleAspectFill;
+            
+            // Force all sublayers to also scale to fill
+            for (CALayer* layer in subview.layer.sublayers) {
+                layer.frame = subview.bounds;
+                layer.contentsGravity = kCAGravityResizeAspectFill;
+                layer.masksToBounds = YES;
+                [layer setNeedsDisplay];
+            }
+            
+            [subview setNeedsLayout];
+            [subview layoutIfNeeded];
+            NSLog(@"📐 Force resized NosmaiView to: %@ (sublayers: %lu)", NSStringFromCGRect(subview.frame), (unsigned long)subview.layer.sublayers.count);
+        }
+    }
 }
 
 - (void)detachCameraGracefully {

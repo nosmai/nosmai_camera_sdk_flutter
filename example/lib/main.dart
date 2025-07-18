@@ -1,18 +1,32 @@
 // ignore_for_file: avoid_print
 
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'nosmai_app_manager.dart';
 import 'unified_camera_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Pre-request permissions for instant camera access
+  await _preRequestPermissions();
+
   // Initialize Nosmai SDK once for the entire app
-  await NosmaiAppManager.instance.initialize(
-    'NOSMAI-91d1b0526e05233b0c682604a2290ad7134b296ceae23fe3',
-  );
+  await NosmaiAppManager.instance.initialize('YOUR_API_KEY_HERE');
 
   runApp(const MyApp());
+}
+
+Future<void> _preRequestPermissions() async {
+  try {
+    // Pre-request camera permission silently
+    await Permission.camera.request();
+    // Pre-request microphone permission for video recording
+    await Permission.microphone.request();
+  } catch (e) {
+    // Silently handle permission errors
+    print('Permission pre-request failed: $e');
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -129,10 +143,21 @@ class HomePage extends StatelessWidget {
                 // Main Camera Button
                 GestureDetector(
                   onTap: () {
+                    // Use optimized navigation for instant transition
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (context) => const UnifiedCameraScreen(),
+                      PageRouteBuilder(
+                        pageBuilder: (context, animation, secondaryAnimation) =>
+                            const UnifiedCameraScreen(),
+                        transitionDuration: const Duration(
+                            milliseconds: 100), // Fast transition
+                        reverseTransitionDuration:
+                            const Duration(milliseconds: 100),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                          return FadeTransition(
+                              opacity: animation, child: child);
+                        },
                       ),
                     );
                   },

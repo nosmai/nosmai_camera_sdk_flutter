@@ -328,9 +328,10 @@ for (final filter in filters) {
   }
 }
 
-// Get filters by category
-final beautyFilters = await nosmai.getFiltersByCategory(NosmaiFilterCategory.beauty);
-final effectFilters = await nosmai.getFiltersByCategory(NosmaiFilterCategory.effect);
+// Get filters organized by category
+final organizedFilters = await nosmai.organizeFiltersByCategory();
+final beautyFilters = organizedFilters[NosmaiFilterCategory.beauty] ?? [];
+final effectFilters = organizedFilters[NosmaiFilterCategory.effect] ?? [];
 ```
 
 ### Camera Controls and Media Capture
@@ -421,7 +422,8 @@ for (final filter in allFilters) {
 }
 
 // Get only filters of a specific category
-final beautyOnly = await nosmai.getFiltersByCategory(NosmaiFilterCategory.beauty);
+final allFilters = await nosmai.organizeFiltersByCategory();
+final beautyOnly = allFilters[NosmaiFilterCategory.beauty] ?? [];
 
 // Apply filters based on type
 for (final filter in allFilters) {
@@ -499,7 +501,6 @@ Main class for interacting with the Nosmai SDK.
 - `Future<List<NosmaiCloudFilter>> getCloudFilters()` - Get cloud filters only
 - `Future<Map<String, dynamic>> downloadCloudFilter(String filterId)` - Download cloud filter
 - `bool isBeautyFilter(dynamic filter)` - Check if filter is beauty type
-- `Future<List<dynamic>> getFiltersByCategory(NosmaiFilterCategory category)` - Get filters by category
 - `Future<Map<NosmaiFilterCategory, List<dynamic>>> organizeFiltersByCategory()` - Organize filters by category
 - `Future<void> clearFilterCache()` - Clear filter cache to force refresh
 - `Future<List<dynamic>> getInitialFilters()` - Get initial filters available from SDK

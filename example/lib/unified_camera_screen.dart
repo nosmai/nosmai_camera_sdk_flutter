@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'dart:async';
 import 'nosmai_app_manager.dart';
 
 class UnifiedCameraScreen extends StatefulWidget {
@@ -16,11 +17,15 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   final NosmaiFlutter _nosmai = NosmaiAppManager.instance.nosmai;
 
   // State management
-  // ignore: unused_field
-  bool _isInitialized = false;
-  bool _isReady = false;
   bool _isRecording = false;
   bool _isFrontCamera = true;
+  bool _isCloudFiltersLoading = false;
+  bool _isCameraSwitching = false;
+  DateTime? _lastSwitchTime;
+  
+  // Cache for faster loading
+  static List<FilterItem>? _cachedEffectFilters;
+  static DateTime? _lastCacheTime;
 
   // Filter categories
   final List<FilterCategory> _categories = [
@@ -124,6 +129,12 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
             max: 2.0),
       ],
     ),
+    // Added "Cloud" category
+    FilterCategory(
+      name: 'Cloud',
+      icon: Icons.cloud_queue,
+      filters: [],
+    ),
   ];
 
   int _selectedCategoryIndex = 0;
@@ -145,17 +156,27 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    _initializeSDK();
-    _loadEffectFilters();
+    
+    // Load filters in background, no camera setup needed
+    _loadFiltersInBackground();
   }
 
   Future<void> _loadEffectFilters() async {
     try {
-      final filters = await _nosmai.getFilters();
+      // Use cached filters if available and recent
+      if (_cachedEffectFilters != null && _lastCacheTime != null && 
+          DateTime.now().difference(_lastCacheTime!).inMinutes < 5) {
+        setState(() {
+          _categories[0].filters = _cachedEffectFilters!;
+        });
+        return;
+      }
+
+      final filters = await _nosmai.fetchFiltersAndEffectsFromAllSources();
       final effectFilters = <FilterItem>[];
 
       for (final filter in filters) {
-        if (filter is NosmaiLocalFilter) {
+        if (filter.isLocalFilter) {
           effectFilters.add(FilterItem(
             id: filter.path,
             name: filter.displayName,
@@ -165,54 +186,104 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
         }
       }
 
+      // Cache the filters
+      _cachedEffectFilters = effectFilters;
+      _lastCacheTime = DateTime.now();
+
       setState(() {
         _categories[0].filters = effectFilters;
       });
     } catch (e) {
-      debugPrint('Error loading effect filters: $e');
+      // Error loading effect filters
     }
   }
 
-  Future<void> _initializeSDK() async {
-    // Request camera permission
-    final status = await Permission.camera.request();
-    if (!mounted) return;
+  /// This method now logs the response from the SDK.
+  Future<void> _loadCloudFilters() async {
+    if (_isCloudFiltersLoading) return;
 
-    if (status != PermissionStatus.granted) {
-      Navigator.pop(context);
-      return;
-    }
+    setState(() {
+      _isCloudFiltersLoading = true;
+    });
 
-    // SDK should already be initialized at app level
-    if (NosmaiAppManager.instance.isInitialized) {
-      setState(() {
-        _isInitialized = true;
-      });
-      await _setupCamera();
-    }
-  }
-
-  Future<void> _setupCamera() async {
     try {
-      await _nosmai.configureCamera(
-        position: _isFrontCamera
-            ? NosmaiCameraPosition.front
-            : NosmaiCameraPosition.back,
-      );
+      final filters = await _nosmai.getCloudFilters();
 
-      // Face detection is automatically enabled when beauty filters are used
+      if (filters.isEmpty) {
+        debugPrint('ℹ️ No cloud filters available - may be due to network issues or license restrictions');
+        // Don't show error to user for empty results - this is normal
+      } else {
+        // Log the raw response to the console
+        debugPrint('--- Fetched Cloud Filters Response ---');
+        debugPrint('Found ${filters.length} cloud filters');
+        for (final filter in filters) {
+          debugPrint(filter.toMap().toString());
+        }
+        debugPrint('------------------------------------');
+      }
 
-      // Start processing
-      await _nosmai.startProcessing();
+      final cloudEffectFilters = <FilterItem>[];
 
-      if (!mounted) return;
+      for (final filter in filters) {
+        cloudEffectFilters.add(FilterItem(
+          id: filter.id,
+          name: filter.displayName,
+          type: FilterType.effect,
+          path: filter.path, // Path is null if not downloaded
+        ));
+      }
+
       setState(() {
-        _isReady = true;
+        final cloudCategoryIndex =
+            _categories.indexWhere((cat) => cat.name == 'Cloud');
+        if (cloudCategoryIndex != -1) {
+          _categories[cloudCategoryIndex].filters = cloudEffectFilters;
+        }
       });
     } catch (e) {
-      debugPrint('Error setting up camera: $e');
+      debugPrint('⚠️ Cloud filters error: $e');
+      // Only show user-facing error for actual exceptions, not empty results
+      if (mounted && e.toString().contains('PlatformException')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cloud filters temporarily unavailable'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCloudFiltersLoading = false;
+        });
+      }
     }
   }
+
+  // Method removed - was unused
+
+  /// Setup camera immediately without waiting for filters
+  // Method removed - was unused
+
+  /// Verify camera is truly ready (quick check)
+  // Method removed - was unused
+
+  /// Load filters in background without blocking camera
+  Future<void> _loadFiltersInBackground() async {
+    // Load filters in background without blocking UI
+    Future.microtask(() async {
+      await _loadEffectFilters();
+    });
+    
+    // Load cloud filters asynchronously
+    Future.microtask(() async {
+      await _loadCloudFilters();
+    });
+  }
+
+
+  // Method removed - was unused
 
   void _toggleFilterPanel() {
     setState(() {
@@ -273,12 +344,91 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
 
         // Effect filters
         default:
-          if (filter.type == FilterType.effect && filter.path != null) {
-            await _nosmai.applyEffect(filter.path!);
+          if (filter.type == FilterType.effect) {
+            await _applyEffectFilter(filter);
           }
       }
     } catch (e) {
       debugPrint('Error applying filter: $e');
+    }
+  }
+
+  Future<void> _applyEffectFilter(FilterItem filter) async {
+    try {
+      // Check if this is a cloud filter that needs to be downloaded
+      if (filter.path == null || filter.path!.isEmpty) {
+        // This is a cloud filter that needs to be downloaded
+        debugPrint('📥 Downloading cloud filter: ${filter.name}');
+        
+        // Show loading indicator
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Text('Downloading ${filter.name}...'),
+                ],
+              ),
+              backgroundColor: const Color(0xFF6C5CE7),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+        
+        // Download the cloud filter
+        final downloadResult = await _nosmai.downloadCloudFilter(filter.id);
+        
+        if (downloadResult['success'] == true) {
+          // Update filter path with downloaded path
+          final downloadedPath = downloadResult['path'] as String?;
+          if (downloadedPath != null) {
+            filter.path = downloadedPath;
+            debugPrint('✅ Cloud filter downloaded successfully: $downloadedPath');
+            
+            // Apply the downloaded filter
+            await _nosmai.applyEffect(downloadedPath);
+            
+            // Show success message
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${filter.name} downloaded and applied!'),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          } else {
+            throw Exception('Download succeeded but no path returned');
+          }
+        } else {
+          throw Exception(downloadResult['error'] ?? 'Download failed');
+        }
+      } else {
+        // This is a local filter or already downloaded cloud filter
+        debugPrint('🎨 Applying local/cached filter: ${filter.name}');
+        await _nosmai.applyEffect(filter.path!);
+      }
+    } catch (e) {
+      debugPrint('❌ Error applying effect filter: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to apply ${filter.name}: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -380,10 +530,110 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   }
 
   Future<void> _switchCamera() async {
+    // Throttle camera switching to prevent crashes
+    final now = DateTime.now();
+    if (_isCameraSwitching || 
+        (_lastSwitchTime != null && now.difference(_lastSwitchTime!).inMilliseconds < 1000)) {
+      debugPrint('Camera switch throttled - too frequent');
+      return;
+    }
+
     setState(() {
+      _isCameraSwitching = true;
       _isFrontCamera = !_isFrontCamera;
     });
-    await _nosmai.switchCamera();
+    
+    _lastSwitchTime = now;
+    
+    try {
+      // Use retry mechanism for camera switching
+      await NosmaiRetryManager.executeWithRetry(
+        () => _nosmai.switchCamera(),
+        maxRetries: 2,
+        shouldRetry: (error) => error is NosmaiError && 
+                              error.type == NosmaiErrorType.cameraSwitchFailed,
+      );
+      debugPrint('✅ Camera switched successfully to ${_isFrontCamera ? 'front' : 'back'}');
+    } catch (e) {
+      debugPrint('❌ Camera switch failed: $e');
+      
+      // Handle specific error types
+      if (e is NosmaiError) {
+        _handleCameraError(e);
+      } else {
+        _showErrorMessage('Camera switch failed: ${e.toString()}');
+      }
+      
+      // Revert camera state on error
+      setState(() {
+        _isFrontCamera = !_isFrontCamera;
+      });
+    } finally {
+      setState(() {
+        _isCameraSwitching = false;
+      });
+    }
+  }
+
+  /// Handle camera-specific errors with user-friendly messages
+  void _handleCameraError(NosmaiError error) {
+    switch (error.type) {
+      case NosmaiErrorType.cameraPermissionDenied:
+        _showErrorDialog(
+          'Camera Permission Required',
+          error.userMessage,
+          actions: error.recoveryActions,
+        );
+        break;
+      case NosmaiErrorType.cameraUnavailable:
+        _showErrorMessage('Camera is not available on this device');
+        break;
+      case NosmaiErrorType.cameraSwitchFailed:
+        _showErrorMessage('Failed to switch camera. Please try again.');
+        break;
+      default:
+        _showErrorMessage(error.userMessage);
+    }
+  }
+
+  /// Show error dialog with recovery actions
+  void _showErrorDialog(String title, String message, {List<String>? actions}) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message),
+            if (actions != null && actions.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text('Suggested actions:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ...actions.map((action) => Text('• $action')),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Show simple error message
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   void _showPhotoSuccessDialog(NosmaiPhotoResult result) {
@@ -411,6 +661,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                 color: Colors.white.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
+              
             ),
             const Icon(
               Icons.check_circle,
@@ -434,8 +685,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.3)),
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -597,19 +847,12 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Camera Preview
-          if (_isReady)
-            const Positioned.fill(
-              child: RepaintBoundary(
-                child: NosmaiCameraPreview(),
-              ),
-            )
-          else
-            const Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFF6C5CE7),
-              ),
+          // Camera Preview - Show immediately for instant opening like TikTok
+          const Positioned.fill(
+            child: RepaintBoundary(
+              child: NosmaiCameraPreview(),
             ),
+          ),
 
           // Top Controls
           Positioned(
@@ -667,8 +910,10 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                       Row(
                         children: [
                           _buildIconButton(
-                            icon: Icons.flip_camera_ios_rounded,
-                            onTap: _switchCamera,
+                            icon: _isCameraSwitching 
+                                ? Icons.hourglass_empty_rounded 
+                                : Icons.flip_camera_ios_rounded,
+                            onTap: _isCameraSwitching ? null : _switchCamera,
                           ),
                           const SizedBox(width: 12),
                           _buildIconButton(
@@ -790,8 +1035,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                                             shape: BoxShape.circle,
                                             color: _isRecording
                                                 ? Colors.red
-                                                : Colors.white
-                                                    .withValues(alpha: 0.3),
+                                                : Colors.white.withValues(alpha: 0.3),
                                           ),
                                           child: Icon(
                                             _isRecording
@@ -881,6 +1125,41 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                 ),
               ),
             ),
+          
+          // Filter Loading Indicator (non-blocking)
+          if (_isCloudFiltersLoading)
+            Positioned(
+              bottom: 320,
+              right: 20,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF6C5CE7),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Loading filters...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -888,21 +1167,22 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
 
   Widget _buildIconButton({
     required IconData icon,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
     double size = 24,
   }) {
+    final isDisabled = onTap == null;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.2),
+          color: Colors.white.withValues(alpha: isDisabled ? 0.1 : 0.2),
           shape: BoxShape.circle,
         ),
         child: Icon(
           icon,
-          color: Colors.white,
+          color: Colors.white.withValues(alpha: isDisabled ? 0.5 : 1.0),
           size: size,
         ),
       ),
@@ -1017,8 +1297,16 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
     );
   }
 
+  /// Since cloud filters now load automatically, the button is no longer needed.
   Widget _buildFilterContent() {
     final category = _categories[_selectedCategoryIndex];
+
+    // Show loading indicator for cloud filters while they are being fetched.
+    if (category.name == 'Cloud' && _isCloudFiltersLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF6C5CE7)),
+      );
+    }
 
     if (category.filters.isEmpty) {
       return Center(
@@ -1032,8 +1320,8 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
       );
     }
 
-    // For effect filters, show horizontal scrollable list
-    if (category.name == 'Effects') {
+    // For effect or cloud filters, show horizontal scrollable list
+    if (category.name == 'Effects' || category.name == 'Cloud') {
       return SizedBox(
         height: 80,
         child: ListView.builder(
@@ -1137,8 +1425,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                     activeTrackColor: const Color(0xFF6C5CE7),
                     inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
                     thumbColor: const Color(0xFF6C5CE7),
-                    overlayColor:
-                        const Color(0xFF6C5CE7).withValues(alpha: 0.3),
+                    overlayColor: const Color(0xFF6C5CE7).withValues(alpha: 0.3),
                     thumbShape:
                         const RoundSliderThumbShape(enabledThumbRadius: 6),
                     trackHeight: 3,
@@ -1193,7 +1480,7 @@ class FilterItem {
   double value;
   final double min;
   final double max;
-  final String? path;
+  String? path;
 
   FilterItem({
     required this.id,
@@ -1213,6 +1500,8 @@ class FilterItem {
         return 1.0;
       case 'temperature':
         return 5000.0;
+      case 'nose_size':
+        return 50.0;
       default:
         return 0.0;
     }

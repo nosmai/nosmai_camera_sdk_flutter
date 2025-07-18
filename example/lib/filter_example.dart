@@ -11,7 +11,7 @@ class MetadataFilterExample extends StatefulWidget {
 
 class _MetadataFilterExampleState extends State<MetadataFilterExample> {
   final _nosmai = NosmaiFlutter.instance;
-  Map<NosmaiFilterCategory, List<dynamic>> _filtersByCategory = {};
+  Map<NosmaiFilterCategory, List<NosmaiFilter>> _filtersByCategory = {};
   String _currentFilterName = 'None';
   bool _isLoading = false;
 
@@ -25,8 +25,18 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
     setState(() => _isLoading = true);
 
     try {
-      // Load and organize filters by category
-      final organized = await _nosmai.organizeFiltersByCategory();
+      // Load filters from all sources
+      final filters = await _nosmai.fetchFiltersAndEffectsFromAllSources();
+      
+      // Organize filters by category
+      final organized = <NosmaiFilterCategory, List<NosmaiFilter>>{};
+      for (final category in NosmaiFilterCategory.values) {
+        organized[category] = [];
+      }
+      
+      for (final filter in filters) {
+        organized[filter.filterCategory]!.add(filter);
+      }
 
       setState(() {
         _filtersByCategory = organized;
@@ -44,9 +54,9 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
     }
   }
 
-  Future<void> _applyFilter(dynamic filter) async {
+  Future<void> _applyFilter(NosmaiFilter filter) async {
     // Determine if this is a beauty filter using metadata
-    final isBeautyFilter = _nosmai.isBeautyFilter(filter);
+    final isBeautyFilter = await _nosmai.isBeautyFilter();
 
     debugPrint('🎨 Applying filter: ${filter.displayName}');
     debugPrint('   Is beauty filter: $isBeautyFilter');
@@ -61,12 +71,12 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
       String? filterPath;
       String displayName = '';
 
-      if (filter is NosmaiLocalFilter) {
+      if (filter.isLocalFilter) {
         filterPath = filter.path;
         displayName = filter.displayName;
-      } else if (filter is NosmaiCloudFilter) {
+      } else if (filter.isCloudFilter) {
         if (filter.isDownloaded) {
-          filterPath = filter.localPath;
+          filterPath = filter.path;
           displayName = filter.displayName;
         } else {
           // Need to download first
@@ -96,17 +106,9 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
     }
   }
 
-  Widget _buildFilterChip(dynamic filter) {
-    String displayName = '';
-    NosmaiFilterCategory category = NosmaiFilterCategory.unknown;
-
-    if (filter is NosmaiLocalFilter) {
-      displayName = filter.displayName;
-      category = filter.filterCategory;
-    } else if (filter is NosmaiCloudFilter) {
-      displayName = filter.displayName;
-      category = filter.filterCategory;
-    }
+  Widget _buildFilterChip(NosmaiFilter filter) {
+    final displayName = filter.displayName;
+    final category = filter.filterCategory;
 
     // Choose icon based on category
     IconData icon;

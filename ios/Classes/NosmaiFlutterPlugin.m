@@ -203,6 +203,12 @@
   else if ([@"isCloudFilterEnabled" isEqualToString:method]) {
     [self handleIsCloudFilterEnabled:call result:result];
   }
+  else if ([@"startLiveFrameStream" isEqualToString:method]) {
+    [self handleStartLiveFrameStream:call result:result];
+  }
+  else if ([@"stopLiveFrameStream" isEqualToString:method]) {
+    [self handleStopLiveFrameStream:call result:result];
+  }
   else {
     result(FlutterMethodNotImplemented);
   }
@@ -233,9 +239,6 @@
       strongSelf.isInitialized = success;
       
       if (success) {
-        NSLog(@"✅ Nosmai Core initialized successfully");
-        
-        // Configure camera with default settings
         NosmaiCameraConfig *config = [[NosmaiCameraConfig alloc] init];
         config.position = NosmaiCameraPositionFront;
         config.sessionPreset = AVCaptureSessionPresetHigh;
@@ -247,13 +250,41 @@
         
         result(@YES);
       } else {
-        NSLog(@"❌ Failed to initialize Nosmai Core: %@", error.localizedDescription);
         result([FlutterError errorWithCode:@"INIT_FAILED"
                                    message:error ? error.localizedDescription : @"Failed to initialize SDK with provided license"
                                    details:nil]);
       }
     });
   }];
+}
+
+#pragma mark - Live Frame Streaming
+- (void)handleStartLiveFrameStream:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK must be initialized before starting the frame stream"
+                               details:nil]);
+    return;
+  }
+  
+  // Live frame streaming not implemented in this version
+  result([FlutterError errorWithCode:@"NOT_IMPLEMENTED"
+                             message:@"Live frame streaming is not implemented"
+                             details:nil]);
+  
+}
+
+- (void)handleStopLiveFrameStream:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK must be initialized before stopping the frame stream"
+                               details:nil]);
+    return;
+  }
+  
+  result([FlutterError errorWithCode:@"NOT_IMPLEMENTED"
+                             message:@"Live frame streaming is not implemented"
+                             details:nil]);
 }
 
 #pragma mark - Camera Configuration
@@ -269,6 +300,14 @@
   NSString* position = call.arguments[@"position"];
   NSString* sessionPreset = call.arguments[@"sessionPreset"];
   
+  // Validate input parameters
+  if (!position || (![position isEqualToString:@"front"] && ![position isEqualToString:@"back"])) {
+    result([FlutterError errorWithCode:@"INVALID_PARAMETER"
+                               message:@"Camera position must be 'front' or 'back'"
+                               details:@{@"position": position ?: @"null"}]);
+    return;
+  }
+  
   // Convert string position to enum
   NosmaiCameraPosition cameraPosition = NosmaiCameraPositionFront;
   if ([@"back" isEqualToString:position]) {
@@ -278,9 +317,11 @@
   // Use default preset if none provided
   if (!sessionPreset) {
     sessionPreset = AVCaptureSessionPresetHigh;
-    NSLog(@"📱 Using default session preset: %@", sessionPreset);
   }
   
+  NSDate *startTime = [NSDate date];
+  
+  // Configure camera synchronously for immediate availability
   @try {
     // Configure camera using the new modular API
     NosmaiCameraConfig *config = [[NosmaiCameraConfig alloc] init];
@@ -291,9 +332,12 @@
     [[NosmaiCore shared].camera updateConfiguration:config];
     [[NosmaiCore shared].camera setDelegate:self];
     
-    NSLog(@"📱 Camera configured: %@ with preset: %@", position, sessionPreset);
+    NSTimeInterval configTime = [[NSDate date] timeIntervalSinceDate:startTime];
+    
     result(nil);
+    
   } @catch (NSException *exception) {
+    NSTimeInterval configTime = [[NSDate date] timeIntervalSinceDate:startTime];
     result([FlutterError errorWithCode:@"CAMERA_CONFIG_ERROR"
                                message:exception.reason
                                details:exception.userInfo]);
@@ -310,19 +354,24 @@
     return;
   }
   
+  NSDate *startTime = [NSDate date];
+  
   @try {
-    // 🔧 FIX: Start camera capture first
+    // Start camera capture first
     BOOL success = [[NosmaiCore shared].camera startCapture];
     if (success) {
       [[NosmaiSDK sharedInstance] startProcessing];
+      NSTimeInterval processingTime = [[NSDate date] timeIntervalSinceDate:startTime];
       result(nil);
     } else {
-      result([FlutterError errorWithCode:@"START_PROCESSING_ERROR"
+      NSTimeInterval processingTime = [[NSDate date] timeIntervalSinceDate:startTime];
+      result([FlutterError errorWithCode:@"CAMERA_START_ERROR"
                                  message:@"Failed to start camera capture"
                                  details:nil]);
     }
   } @catch (NSException *exception) {
-    result([FlutterError errorWithCode:@"START_PROCESSING_ERROR"
+    NSTimeInterval processingTime = [[NSDate date] timeIntervalSinceDate:startTime];
+    result([FlutterError errorWithCode:@"PROCESSING_START_ERROR"
                                message:exception.reason
                                details:exception.userInfo]);
   }
@@ -341,7 +390,6 @@
     [[NosmaiSDK sharedInstance] stopProcessing];
     // 🔧 FIX: Then stop camera capture
     [[NosmaiCore shared].camera stopCapture];
-    NSLog(@"⏸️ SDK processing and camera capture stopped");
     result(nil);
   } @catch (NSException *exception) {
     result([FlutterError errorWithCode:@"STOP_PROCESSING_ERROR"
@@ -799,10 +847,18 @@
   
   NSString* filePath = call.arguments[@"filePath"];
   
-  if (!filePath) {
-    result([FlutterError errorWithCode:@"INVALID_ARGUMENTS"
-                               message:@"File path is required"
-                               details:nil]);
+  if (!filePath || filePath.length == 0) {
+    result([FlutterError errorWithCode:@"INVALID_PARAMETER"
+                               message:@"Filter file path cannot be empty"
+                               details:@{@"filePath": filePath ?: @"null"}]);
+    return;
+  }
+  
+  // Check if file exists
+  if (![[NSFileManager defaultManager] fileExistsAtPath:filePath]) {
+    result([FlutterError errorWithCode:@"FILTER_NOT_FOUND"
+                               message:@"Filter file not found at specified path"
+                               details:@{@"filePath": filePath}]);
     return;
   }
   
@@ -810,17 +866,41 @@
     // Use the new Effects Engine for loading filters
     [[NosmaiCore shared].effects applyEffect:filePath completion:^(BOOL success, NSError *error) {
       if (success) {
-        NSLog(@"📁 Load Nosmai filter %@: SUCCESS", filePath);
         result(@(YES));
       } else {
-        NSLog(@"📁 Load Nosmai filter %@: FAILED - %@", filePath, error.localizedDescription);
-        result(@(NO));
+        
+        // Determine specific error type
+        NSString *errorCode = @"FILTER_LOAD_ERROR";
+        NSString *errorMessage = @"Failed to load filter";
+        
+        if (error) {
+          if ([error.localizedDescription containsString:@"format"] || [error.localizedDescription containsString:@"invalid"]) {
+            errorCode = @"FILTER_INVALID_FORMAT";
+            errorMessage = @"Filter file format is invalid or corrupted";
+          } else if ([error.localizedDescription containsString:@"version"]) {
+            errorCode = @"FILTER_UNSUPPORTED_VERSION";
+            errorMessage = @"Filter file version is not supported";
+          } else if ([error.localizedDescription containsString:@"not found"]) {
+            errorCode = @"FILTER_NOT_FOUND";
+            errorMessage = @"Filter file not found";
+          }
+        }
+        
+        result([FlutterError errorWithCode:errorCode
+                                   message:errorMessage
+                                   details:@{
+                                     @"filePath": filePath,
+                                     @"originalError": error.localizedDescription ?: @"Unknown error"
+                                   }]);
       }
     }];
   } @catch (NSException *exception) {
-    result([FlutterError errorWithCode:@"LOAD_FILTER_ERROR"
-                               message:exception.reason
-                               details:exception.userInfo]);
+    result([FlutterError errorWithCode:@"FILTER_LOAD_ERROR"
+                               message:exception.reason ?: @"Failed to load filter"
+                               details:@{
+                                 @"filePath": filePath,
+                                 @"originalError": exception.reason ?: @"Unknown error"
+                               }]);
   }
 }
 
@@ -832,20 +912,45 @@
     return;
   }
   
-  @try {
-    BOOL success = [[NosmaiCore shared].camera switchCamera];
-    NSLog(@"📷 Camera switch: %@", success ? @"SUCCESS" : @"FAILED");
-    result(@(success));
-  } @catch (NSException *exception) {
-    result([FlutterError errorWithCode:@"CAMERA_SWITCH_ERROR"
-                               message:exception.reason
-                               details:exception.userInfo]);
-  }
+  // Perform camera switch on main thread to avoid UI issues
+  dispatch_async(dispatch_get_main_queue(), ^{
+    @try {
+      BOOL success = [[NosmaiCore shared].camera switchCamera];
+      
+      // Send result back on main thread
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (success) {
+          result(@(success));
+        } else {
+          result([FlutterError errorWithCode:@"CAMERA_SWITCH_FAILED"
+                                     message:@"Camera switch operation failed"
+                                     details:@{@"reason": @"Switch operation returned false"}]);
+        }
+      });
+    } @catch (NSException *exception) {
+      dispatch_async(dispatch_get_main_queue(), ^{
+        NSString *errorCode = @"CAMERA_SWITCH_FAILED";
+        NSString *errorMessage = exception.reason ?: @"Camera switch failed";
+        
+        // Check for specific error conditions
+        if ([exception.reason containsString:@"unavailable"] || [exception.reason containsString:@"not found"]) {
+          errorCode = @"CAMERA_UNAVAILABLE";
+          errorMessage = @"Camera is not available";
+        } else if ([exception.reason containsString:@"permission"]) {
+          errorCode = @"CAMERA_PERMISSION_DENIED";
+          errorMessage = @"Camera permission is required";
+        }
+        
+        result([FlutterError errorWithCode:errorCode
+                                   message:errorMessage
+                                   details:@{@"originalError": exception.reason ?: @"Unknown error"}]);
+      });
+    }
+  });
 }
 
 - (void)handleSetFaceDetectionEnabled:(FlutterMethodCall*)call result:(FlutterResult)result {
   // Face detection is automatically handled by the SDK for face-based filters
-  NSLog(@"👤 Face detection is automatically managed by SDK");
   result(nil);
 }
 
@@ -859,7 +964,6 @@
   
   @try {
     [[NosmaiCore shared].effects removeAllEffects];
-    NSLog(@"🚫 All filters removed");
     result(nil);
   } @catch (NSException *exception) {
     result([FlutterError errorWithCode:@"REMOVE_FILTERS_ERROR"
@@ -874,7 +978,6 @@
       // 🔧 FIX: Call cleanup on NosmaiCore but keep SDK initialized for reuse
       [[NosmaiCore shared] cleanup];
       // Don't set isInitialized to NO - SDK remains ready for next use
-      NSLog(@"🧹 SDK cleanup completed - ready for reuse");
     }
     
     // Clear filter cache during cleanup
@@ -890,7 +993,6 @@
 
 - (void)handleClearFilterCache:(FlutterMethodCall*)call result:(FlutterResult)result {
   [self clearFilterCache];
-  NSLog(@"🧹 Filter cache cleared");
   result(nil);
 }
 
@@ -910,7 +1012,6 @@
       if (core && core.isInitialized && self.isCameraAttached) {
         [core.camera detachFromView];
         self.isCameraAttached = NO;
-        NSLog(@"📺 Camera detached gracefully via Flutter method");
         
         // Notify Flutter that camera has been detached
         [self.channel invokeMethod:@"onCameraDetached" arguments:nil];
@@ -938,7 +1039,6 @@
   @try {
     // 🔧 FIX: Force preview view recreation by calling setPreviewView with nil then with the actual view
     if (self.previewView) {
-      NSLog(@"🔄 Reinitializing preview view");
       
       // First set to nil to force cleanup
       [[NosmaiSDK sharedInstance] setPreviewView:nil];
@@ -947,11 +1047,9 @@
       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         // Set the preview view again
         [[NosmaiSDK sharedInstance] setPreviewView:self.previewView];
-        NSLog(@"✅ Preview view reinitialized");
         result(nil);
       });
     } else {
-      NSLog(@"⚠️ No preview view to reinitialize");
       result(nil);
     }
   } @catch (NSException *exception) {
@@ -977,9 +1075,7 @@
     // This helps when navigating back to the camera view
     if (self.previewView) {
       [[NosmaiSDK sharedInstance] setPreviewView:self.previewView];
-      NSLog(@"📺 Preview view set on NosmaiSDK");
     } else {
-      NSLog(@"📺 Preview view setup will be handled by platform view");
     }
     result(nil);
   } @catch (NSException *exception) {
@@ -1010,10 +1106,8 @@
   
   [[NosmaiCore shared].effects applyEffect:effectPath completion:^(BOOL success, NSError *error) {
     if (success) {
-      NSLog(@"✅ Effect applied successfully: %@", effectPath);
       result(@YES);
     } else {
-      NSLog(@"❌ Failed to apply effect: %@", error.localizedDescription);
       result([FlutterError errorWithCode:@"EFFECT_ERROR"
                                  message:error ? error.localizedDescription : @"Failed to apply effect"
                                  details:nil]);
@@ -1038,12 +1132,21 @@
     return;
   }
   
-  NSLog(@"🔄 Starting download for cloud filter: %@", filterId);
+  // Check if filter is already downloaded
+  if ([[NosmaiSDK sharedInstance] isCloudFilterDownloaded:filterId]) {
+    NSString* localPath = [[NosmaiSDK sharedInstance] getCloudFilterLocalPath:filterId];
+    result(@{
+      @"success": @YES,
+      @"localPath": localPath ?: @"",
+      @"path": localPath ?: @""
+    });
+    return;
+  }
+  
   
   // Use the same approach as VideoFilterController.mm - use NosmaiSDK directly
   [[NosmaiSDK sharedInstance] downloadCloudFilter:filterId
                                           progress:^(float progress) {
-    NSLog(@"📥 Download progress for %@: %.1f%%", filterId, progress * 100);
     // Send progress updates to Flutter
     [self.channel invokeMethod:@"onDownloadProgress" arguments:@{
       @"filterId": filterId,
@@ -1052,13 +1155,12 @@
   }
                                         completion:^(BOOL success, NSString *localPath, NSError *error) {
     if (success) {
-      NSLog(@"✅ Cloud filter downloaded successfully: %@ -> %@", filterId, localPath);
       result(@{
         @"success": @YES,
-        @"localPath": localPath ?: @""
+        @"localPath": localPath ?: @"",
+        @"path": localPath ?: @""
       });
     } else {
-      NSLog(@"❌ Failed to download cloud filter %@: %@", filterId, error.localizedDescription ?: @"Unknown error");
       result([FlutterError errorWithCode:@"DOWNLOAD_ERROR"
                                  message:error ? error.localizedDescription : @"Failed to download cloud filter"
                                  details:@{@"filterId": filterId}]);
@@ -1077,7 +1179,7 @@
   // Use NosmaiSDK getCloudFilters with preview images like in native implementation
   NSArray<NSDictionary *> *cloudFilters = [[NosmaiSDK sharedInstance] getCloudFilters];
   
-  if (cloudFilters) {
+  if (cloudFilters && cloudFilters.count > 0) {
     // Process each cloud filter to add preview images
     NSMutableArray *enhancedFilters = [NSMutableArray array];
     
@@ -1100,6 +1202,13 @@
         enhancedFilter[@"filterCategory"] = filter[@"filterCategory"];
       }
       
+      // Add type field for cloud filters - this is required by NosmaiCloudFilter.fromMap
+      // Store the original type (free/paid) in a separate field and set type to "cloud"
+      if (enhancedFilter[@"type"]) {
+        enhancedFilter[@"originalType"] = enhancedFilter[@"type"];
+      }
+      enhancedFilter[@"type"] = @"cloud";
+      
       if (filterPath && [[NSFileManager defaultManager] fileExistsAtPath:filterPath]) {
         UIImage *previewImage = [[NosmaiSDK sharedInstance] loadPreviewImageForFilter:filterPath];
         if (previewImage) {
@@ -1116,13 +1225,12 @@
     }
     
     NSArray<NSDictionary *> *sanitizedFilters = [self sanitizeFiltersForFlutter:enhancedFilters];
-    NSLog(@"✅ Retrieved %lu cloud filters with previews", (unsigned long)sanitizedFilters.count);
     result(sanitizedFilters ?: @[]);
   } else {
-    NSLog(@"❌ Failed to get cloud filters from SDK");
-    result([FlutterError errorWithCode:@"CLOUD_FILTERS_ERROR"
-                               message:@"Failed to retrieve cloud filters"
-                               details:nil]);
+    // Return empty array instead of error - cloud filters might not be available
+    // due to network issues, license restrictions, or no filters configured
+    NSLog(@"Cloud filters not available - returning empty array");
+    result(@[]);
   }
 }
 
@@ -1136,7 +1244,6 @@
   
   NSArray<NSDictionary *> *filters = [[NosmaiSDK sharedInstance] getLocalFilters];
   NSArray<NSDictionary *> *sanitizedFilters = [self sanitizeFiltersForFlutter:filters];
-  NSLog(@"✅ Retrieved %lu local filters", (unsigned long)sanitizedFilters.count);
   result(sanitizedFilters ?: @[]);
 }
 
@@ -1158,7 +1265,8 @@
     NSArray<NSDictionary*> *filtersOfType = organizedFilters[filterType];
     for (NSDictionary *filter in filtersOfType) {
       NSMutableDictionary *enhancedFilter = [filter mutableCopy];
-      enhancedFilter[@"filterType"] = filterType; // Add filter type for organization
+      // Don't override filterType here - let mapFrameworkKeysToPluginKeys determine it correctly
+      // enhancedFilter[@"filterType"] = filterType; // Add filter type for organization
       [allFilters addObject:enhancedFilter];
     }
   }
@@ -1177,7 +1285,6 @@
   
   // Check network connectivity before attempting cloud filter fetch
   if (![self isNetworkAvailable]) {
-    NSLog(@"📡 Network not available, skipping cloud filter fetch");
     result(nil);
     return;
   }
@@ -1199,44 +1306,36 @@
                                details:nil]);
     return;
   }
-  
+
+  // Perform all data fetching and processing on a background thread
+  // to keep the UI responsive.
   dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-    // First get initial filters for immediate display
+    
+    // 1. Get initial filters from the Nosmai SDK
     NSDictionary<NSString*, NSArray<NSDictionary*>*> *organizedFilters = [[NosmaiSDK sharedInstance] getInitialFilters];
     
     NSMutableArray *allFilters = [NSMutableArray array];
     
-    // Process organized filters
+    // Process the organized filters from the SDK
     for (NSString *filterType in organizedFilters.allKeys) {
       NSArray<NSDictionary*> *filtersOfType = organizedFilters[filterType];
       
       for (NSDictionary *filter in filtersOfType) {
         NSMutableDictionary *enhancedFilter = [filter mutableCopy];
         
-        // Ensure required fields have values (not NSNull)
+        // Basic validation to prevent crashes from null names
         if (!enhancedFilter[@"name"] || [enhancedFilter[@"name"] isKindOfClass:[NSNull class]]) {
-          NSLog(@"⚠️ Skipping filter with invalid name");
           continue;
         }
         
-        // Add filter type for organization
+        // Set filterType from SDK's organization
         enhancedFilter[@"filterType"] = filterType;
         
-        // Safely get filter path, handling NSNull
-        id pathValue = filter[@"path"];
-        id localPathValue = filter[@"localPath"];
-        NSString *filterPath = nil;
-        
-        if ([pathValue isKindOfClass:[NSString class]]) {
-          filterPath = pathValue;
-        } else if ([localPathValue isKindOfClass:[NSString class]]) {
-          filterPath = localPathValue;
-        }
-        
-        if (filterPath && [[NSFileManager defaultManager] fileExistsAtPath:filterPath]) {
-          UIImage *previewImage = [[NosmaiSDK sharedInstance] loadPreviewImageForFilter:filterPath];
+        // Safely get the filter path for preview loading
+        id pathValue = filter[@"localPath"] ?: filter[@"path"];
+        if ([pathValue isKindOfClass:[NSString class]] && [[NSFileManager defaultManager] fileExistsAtPath:pathValue]) {
+          UIImage *previewImage = [[NosmaiSDK sharedInstance] loadPreviewImageForFilter:pathValue];
           if (previewImage) {
-            // Convert UIImage to base64 string for Flutter
             NSData *imageData = UIImageJPEGRepresentation(previewImage, 0.7);
             if (imageData) {
               NSString *base64String = [imageData base64EncodedStringWithOptions:0];
@@ -1249,34 +1348,34 @@
       }
     }
     
-    NSLog(@"✅ Found %lu filters from SDK with previews", (unsigned long)allFilters.count);
-    
-    // Now add Flutter local filters on top
+    // 2. Add local filters defined in the Flutter project's assets
     NSArray<NSDictionary *> *localFilters = [self getFlutterLocalFilters];
     if (localFilters.count > 0) {
-      NSLog(@"✅ Adding %lu Flutter local filters", (unsigned long)localFilters.count);
       [allFilters addObjectsFromArray:localFilters];
     }
-    
-    NSLog(@"✅ Retrieved %lu total filters", (unsigned long)allFilters.count);
-    
-    // Sanitize filters to ensure they only contain serializable data
+
+    // 3. Sanitize the final combined list for safe transport to Flutter
     NSArray *sanitizedFilters = [self sanitizeFiltersForFlutter:allFilters];
-    
-    // Return result on main thread
+
+    // ================== LOGGING CALL ==================
+    // Log the final data right before sending it to Flutter.
+    [self printAllFilterData:sanitizedFilters ofType:@"All Combined Filters (Final)"];
+    // ==================================================
+
+    // 4. Return the final result to Flutter on the main thread
     dispatch_async(dispatch_get_main_queue(), ^{
+      // This is the ONLY place 'result' should be called for this method.
       result(sanitizedFilters ?: @[]);
       
-      // Only trigger cloud filter fetch if network is available
+      // 5. After providing the initial list, trigger a background fetch for any new cloud filters.
+      // This gives the user an immediate list to work with while updates happen in the background.
       if ([self isNetworkAvailable]) {
         [[NosmaiSDK sharedInstance] fetchCloudFilters];
       } else {
-        NSLog(@"📡 Network not available, skipping background cloud filter fetch");
       }
     });
   });
 }
-
 - (NSArray<NSDictionary *> *)getFlutterLocalFilters {
   // Check cache first - only refresh every 5 minutes
   NSTimeInterval cacheValidDuration = 5 * 60; // 5 minutes
@@ -1284,7 +1383,6 @@
   
   if (self.cachedLocalFilters && self.lastFilterCacheTime && 
       [now timeIntervalSinceDate:self.lastFilterCacheTime] < cacheValidDuration) {
-    NSLog(@"💾 Using cached local filters (%lu items)", (unsigned long)self.cachedLocalFilters.count);
     return self.cachedLocalFilters;
   }
   
@@ -1293,7 +1391,6 @@
   // Dynamically discover all .nosmai files in assets/filters/ directory
   NSArray *discoveredFilterNames = [self discoverNosmaiFiltersInAssets];
   
-  NSLog(@"🔍 Discovered %lu .nosmai files in assets/filters/", (unsigned long)discoveredFilterNames.count);
   
   for (NSString *filterName in discoveredFilterNames) {
     // Check if filter info is cached
@@ -1349,9 +1446,7 @@
       }
       
       [localFilters addObject:[filterInfo copy]];
-      NSLog(@"✅ Found Flutter local filter: %@ at %@", filterName, filePath);
     } else {
-      NSLog(@"❌ Could not find Flutter asset: assets/filters/%@.nosmai", filterName);
     }
   }
   
@@ -1362,15 +1457,119 @@
   return [localFilters copy];
 }
 
+- (NSDictionary *)mapFrameworkKeysToPluginKeys:(NSDictionary *)frameworkFilter {
+  NSMutableDictionary *pluginFilter = [NSMutableDictionary dictionary];
+  
+  // Debug: Log the original framework filter data
+  // Debug logging removed for production
+  
+  // Map basic required fields
+  pluginFilter[@"id"] = frameworkFilter[@"id"] ?: frameworkFilter[@"name"] ?: @"";
+  pluginFilter[@"name"] = frameworkFilter[@"name"] ?: @"";
+  pluginFilter[@"description"] = frameworkFilter[@"description"] ?: @"";
+  pluginFilter[@"displayName"] = frameworkFilter[@"displayName"] ?: frameworkFilter[@"name"] ?: @"";
+  
+  // Map path (framework can use both localPath and path)
+  NSString *path = frameworkFilter[@"path"] ?: frameworkFilter[@"localPath"] ?: @"";
+  // Don't set empty paths - let Flutter handle missing paths
+  if (path.length > 0) {
+    pluginFilter[@"path"] = path;
+  } else {
+    pluginFilter[@"path"] = @"";
+  }
+  
+  // Debug logging for path mapping
+  NSLog(@"🔍 Path mapping debug for %@:", frameworkFilter[@"name"] ?: @"Unknown");
+  NSLog(@"   - Framework localPath: %@", frameworkFilter[@"localPath"] ?: @"null");
+  NSLog(@"   - Framework path: %@", frameworkFilter[@"path"] ?: @"null");
+  NSLog(@"   - Final mapped path: %@", path);
+  
+  // Map file size
+  pluginFilter[@"fileSize"] = frameworkFilter[@"fileSize"] ?: @0;
+  
+  // Map type (framework and plugin both use same values)
+  pluginFilter[@"type"] = frameworkFilter[@"type"] ?: @"local";
+  
+  // Map filterCategory (framework uses specific categories, plugin uses generic ones)
+  NSString *frameworkCategory = frameworkFilter[@"filterCategory"];
+  if (frameworkCategory) {
+    if ([frameworkCategory isEqualToString:@"beauty-effects"]) {
+      pluginFilter[@"filterCategory"] = @"beauty";
+    } else if ([frameworkCategory isEqualToString:@"special-effects"]) {
+      pluginFilter[@"filterCategory"] = @"effect";
+    } else if ([frameworkCategory isEqualToString:@"cloud-filters"] || 
+               [frameworkCategory isEqualToString:@"fx-and-filters"]) {
+      pluginFilter[@"filterCategory"] = @"filter";
+    } else {
+      pluginFilter[@"filterCategory"] = @"unknown";
+    }
+  } else {
+    pluginFilter[@"filterCategory"] = @"unknown";
+  }
+  
+  // Map filterType - for cloud filters use filterCategory, for local filters preserve SDK's filterType
+  NSString *filterType = frameworkFilter[@"filterType"] ?: @"effect"; // Use SDK's filterType or default
+  
+  // For cloud filters, determine type from filterCategory (override SDK's filterType)
+  if ([frameworkFilter[@"type"] isEqualToString:@"cloud"]) {
+    NSString *category = frameworkFilter[@"filterCategory"];
+    NSLog(@"🔍 FilterType determination for %@: type=%@, category=%@", 
+          frameworkFilter[@"name"] ?: @"Unknown", 
+          frameworkFilter[@"type"] ?: @"null", 
+          category ?: @"null");
+    
+    if ([category hasPrefix:@"fx-and-filters"]) {
+      filterType = @"filter";
+      NSLog(@"   -> Setting filterType to 'filter' (fx-and-filters)");
+    } else if ([category hasPrefix:@"special-effects"]) {
+      filterType = @"effect";
+      NSLog(@"   -> Setting filterType to 'effect' (special-effects)");
+    } else {
+      NSLog(@"   -> Using default filterType 'effect' (unknown category)");
+    }
+  } else {
+    // For local filters and others, use SDK's filterType
+    NSLog(@"🔍 FilterType determination for %@: type=%@, using SDK filterType: %@", 
+          frameworkFilter[@"name"] ?: @"Unknown", 
+          frameworkFilter[@"type"] ?: @"null",
+          filterType);
+  }
+  
+  pluginFilter[@"filterType"] = filterType;
+  
+  // Map cloud-specific properties
+  pluginFilter[@"isFree"] = frameworkFilter[@"isFree"] ?: @YES;
+  pluginFilter[@"isDownloaded"] = frameworkFilter[@"isDownloaded"] ?: @YES;
+  pluginFilter[@"previewUrl"] = frameworkFilter[@"previewUrl"] ?: frameworkFilter[@"thumbnailUrl"];
+  pluginFilter[@"category"] = frameworkFilter[@"category"];
+  pluginFilter[@"downloadCount"] = frameworkFilter[@"downloadCount"] ?: @0;
+  pluginFilter[@"price"] = frameworkFilter[@"price"] ?: @0;
+  
+  // Pass through other fields that might be useful
+  if (frameworkFilter[@"previewImageBase64"]) {
+    pluginFilter[@"previewImageBase64"] = frameworkFilter[@"previewImageBase64"];
+  }
+  
+  return [pluginFilter copy];
+}
+
 - (NSArray<NSDictionary *> *)sanitizeFiltersForFlutter:(NSArray<NSDictionary *> *)filters {
   NSMutableArray *sanitizedFilters = [NSMutableArray array];
   
   for (NSDictionary *filter in filters) {
+    // First map framework keys to plugin keys
+    NSDictionary *mappedFilter = [self mapFrameworkKeysToPluginKeys:filter];
+    
+    // Debug the mapping result
+    NSLog(@"🔍 Mapped filter result for %@:", mappedFilter[@"name"] ?: @"Unknown");
+    NSLog(@"   - Mapped path: %@", mappedFilter[@"path"] ?: @"null");
+    NSLog(@"   - Mapped filterType: %@", mappedFilter[@"filterType"] ?: @"null");
+    
     NSMutableDictionary *sanitizedFilter = [NSMutableDictionary dictionary];
     
     // Only include supported data types for Flutter StandardCodec
-    for (NSString *key in filter.allKeys) {
-      id value = filter[key];
+    for (NSString *key in mappedFilter.allKeys) {
+      id value = mappedFilter[key];
       
       // Check if value is a supported type for Flutter StandardCodec
       if ([value isKindOfClass:[NSNull class]]) {
@@ -1380,8 +1579,14 @@
       } else if (value == nil) {
         // Skip nil values
         NSLog(@"⚠️ Skipping nil value for key: %@", key);
-      } else if ([value isKindOfClass:[NSString class]] ||
-                 [value isKindOfClass:[NSNumber class]] ||
+      } else if ([value isKindOfClass:[NSString class]]) {
+        // Handle strings specially - don't skip empty strings for path
+        NSString *stringValue = (NSString *)value;
+        if ([key isEqualToString:@"path"] && stringValue.length > 0) {
+          NSLog(@"✅ Including path: %@", stringValue);
+        }
+        sanitizedFilter[key] = value;
+      } else if ([value isKindOfClass:[NSNumber class]] ||
                  [value isKindOfClass:[NSArray class]] ||
                  [value isKindOfClass:[NSDictionary class]] ||
                  [value isKindOfClass:[NSData class]]) {
@@ -1405,42 +1610,87 @@
   return [sanitizedFilters copy];
 }
 
-- (void)printAllFilterData:(NSArray<NSDictionary *> *)filters {
-  NSLog(@"\n=================== FLUTTER FILTER DATA ANALYSIS ===================");
-  NSLog(@"📊 Total Filters Found: %lu", (unsigned long)filters.count);
+// - (void)printAllFilterData:(NSArray<NSDictionary *> *)filters {
+//   NSLog(@"\n=================== FLUTTER FILTER DATA ANALYSIS ===================");
+//   NSLog(@"📊 Total Filters Found: %lu", (unsigned long)filters.count);
   
-  if (!filters || filters.count == 0) {
-    NSLog(@"❌ No filters found!");
-    return;
-  }
+//   if (!filters || filters.count == 0) {
+//     NSLog(@"❌ No filters found!");
+//     return;
+//   }
   
-  for (int i = 0; i < filters.count; i++) {
-    NSDictionary *filter = filters[i];
+//   for (int i = 0; i < filters.count; i++) {
+//     NSDictionary *filter = filters[i];
     
-    NSLog(@"\n[%d] Filter Details:", i+1);
-    NSLog(@"Filter Name: %@", filter[@"name"] ?: @"null");
-    NSLog(@"Display Name: %@", filter[@"displayName"] ?: @"null");
-    NSLog(@"Type: %@", filter[@"type"] ?: @"null");
-    NSLog(@"Is Downloaded: %@", filter[@"isDownloaded"] ?: @"null");
-    NSLog(@"File Size: %@", filter[@"fileSize"] ?: @"null");
-    NSLog(@"Path: %@", filter[@"path"] ?: @"null");
+//     NSLog(@"\n[%d] Filter Details:", i+1);
+//     NSLog(@"Filter Name: %@", filter[@"name"] ?: @"null");
+//     NSLog(@"Display Name: %@", filter[@"displayName"] ?: @"null");
+//     NSLog(@"Type: %@", filter[@"type"] ?: @"null");
+//     NSLog(@"Is Downloaded: %@", filter[@"isDownloaded"] ?: @"null");
+//     NSLog(@"File Size: %@", filter[@"fileSize"] ?: @"null");
+//     NSLog(@"Path: %@", filter[@"path"] ?: @"null");
     
-    // Only show cloud-specific fields if they exist
-    if (filter[@"filterId"]) {
-      NSLog(@"Filter ID: %@", filter[@"filterId"]);
-    } else {
-      NSLog(@"Filter ID: null (MISSING!)");
-    }
-    if (filter[@"isFree"]) {
-      NSLog(@"Is Free: %@", filter[@"isFree"]);
-    }
-    if (filter[@"localPath"]) {
-      NSLog(@"Local Path: %@", filter[@"localPath"]);
-    }
-  }
+//     // Only show cloud-specific fields if they exist
+//     if (filter[@"filterId"]) {
+//       NSLog(@"Filter ID: %@", filter[@"filterId"]);
+//     } else {
+//       NSLog(@"Filter ID: null (MISSING!)");
+//     }
+//     if (filter[@"isFree"]) {
+//       NSLog(@"Is Free: %@", filter[@"isFree"]);
+//     }
+//     if (filter[@"localPath"]) {
+//       NSLog(@"Local Path: %@", filter[@"localPath"]);
+//     }
+//   }
   
-  NSLog(@"=================== END FLUTTER FILTER ANALYSIS ===================\n");
+//   NSLog(@"=================== END FLUTTER FILTER ANALYSIS ===================\n");
+// }
+
+
+- (void)printAllFilterData:(NSArray<NSDictionary *> *)filters ofType:(NSString *)filterCategoryName {
+    NSLog(@"\n=================== NOSMAI FILTER DATA ANALYSIS (%@) ===================", [filterCategoryName uppercaseString]);
+    NSLog(@"📊 Total '%@' Filters Found: %lu", filterCategoryName, (unsigned long)filters.count);
+
+    if (!filters || filters.count == 0) {
+        NSLog(@"❌ No filters found for this category!");
+        NSLog(@"========================================================================\n");
+        return;
+    }
+
+    for (int i = 0; i < filters.count; i++) {
+        NSDictionary *filter = filters[i];
+
+        // Use a more descriptive name if available (displayName > name)
+        NSString *logName = filter[@"displayName"] ?: filter[@"name"];
+        NSLog(@"\n[%d] Filter: '%@'", i + 1, logName ?: @"Unnamed Filter");
+        NSLog(@"--------------------------------------------------");
+
+        // --- Core Identification ---
+        NSLog(@"  Name         : %@", filter[@"name"] ?: @"null");
+        NSLog(@"  Display Name : %@", filter[@"displayName"] ?: @"null");
+
+        // --- Type & Category Information ---
+        NSLog(@"  Type         : %@", filter[@"type"] ?: @"null"); // e.g., "cloud", "nosmai", "special"
+        NSLog(@"  Filter Type  : %@", filter[@"filterType"] ?: @"null"); // Custom type from Flutter
+        NSLog(@"  Category     : %@", filter[@"category"] ?: filter[@"filterCategory"] ?: @"null"); // e.g., "Beauty", "Effect"
+
+        // --- Download & Path Status ---
+        NSLog(@"  Is Downloaded: %@", [filter[@"isDownloaded"] boolValue] ? @"YES" : @"NO");
+        NSLog(@"  Path         : %@", filter[@"path"] ?: @"null");
+        NSLog(@"  Local Path   : %@", filter[@"localPath"] ?: @"null"); // Often same as path after download
+
+        // --- Cloud-Specific Fields ---
+        if ([filter[@"type"] isEqualToString:@"cloud"]) {
+            NSLog(@"  Filter ID    : %@", filter[@"filterId"] ?: @"null (MISSING!)");
+            NSLog(@"  Is Free      : %@", [filter[@"isFree"] boolValue] ? @"YES" : @"NO");
+            NSLog(@"  File Size    : %@", filter[@"fileSize"] ? [NSString stringWithFormat:@"%@ bytes", filter[@"fileSize"]] : @"null");
+            NSLog(@"  Preview URL  : %@", filter[@"previewUrl"] ?: filter[@"thumbnailUrl"] ?: @"null");
+        }
+    }
+    NSLog(@"\n=================== END OF ANALYSIS (%@) ===================\n", [filterCategoryName uppercaseString]);
 }
+
 
 - (void)handleGetEffectParameters:(FlutterMethodCall*)call result:(FlutterResult)result {
   if (!self.isInitialized) {
@@ -1768,9 +2018,37 @@
   }];
 }
 
-- (void)nosmaiDidUpdateFilters:(NSDictionary<NSString*, NSArray<NSDictionary*>*>*)organizedFilters {
-  NSLog(@"🔄 Filters updated from SDK");
+// - (void)nosmaiDidUpdateFilters:(NSDictionary<NSString*, NSArray<NSDictionary*>*>*)organizedFilters {
+//   NSLog(@"🔄 Filters updated from SDK");
   
+//   // Convert organized filters to array format for Flutter
+//   NSMutableArray *allFilters = [NSMutableArray array];
+  
+//   for (NSString *filterType in organizedFilters.allKeys) {
+//     NSArray<NSDictionary*> *filtersOfType = organizedFilters[filterType];
+//     for (NSDictionary *filter in filtersOfType) {
+//       NSMutableDictionary *enhancedFilter = [filter mutableCopy];
+//       enhancedFilter[@"filterType"] = filterType;
+//       [allFilters addObject:enhancedFilter];
+//     }
+//   }
+  
+//   // Sanitize and send to Flutter
+//   NSArray *sanitizedFilters = [self sanitizeFiltersForFlutter:allFilters];
+//   [self.channel invokeMethod:@"onFiltersUpdated" arguments:sanitizedFilters];
+// }
+
+- (void)nosmaiDidUpdateFilters:(NSDictionary<NSString*, NSArray<NSDictionary*>*>*)organizedFilters {
+  NSLog(@"🔄 Filters updated from SDK delegate");
+  
+  // ================== ADD THIS LOGGING LOGIC ==================
+  // Iterate through each category ("filter", "effect", etc.) and log its contents.
+  for (NSString *filterCategoryName in organizedFilters.allKeys) {
+      NSArray<NSDictionary*> *filtersInCategory = organizedFilters[filterCategoryName];
+      [self printAllFilterData:filtersInCategory ofType:filterCategoryName];
+  }
+  // ============================================================
+
   // Convert organized filters to array format for Flutter
   NSMutableArray *allFilters = [NSMutableArray array];
   
@@ -1778,7 +2056,8 @@
     NSArray<NSDictionary*> *filtersOfType = organizedFilters[filterType];
     for (NSDictionary *filter in filtersOfType) {
       NSMutableDictionary *enhancedFilter = [filter mutableCopy];
-      enhancedFilter[@"filterType"] = filterType;
+      // Don't override filterType here - let mapFrameworkKeysToPluginKeys determine it correctly
+      // enhancedFilter[@"filterType"] = filterType;
       [allFilters addObject:enhancedFilter];
     }
   }
