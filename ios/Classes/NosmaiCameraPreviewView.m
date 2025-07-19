@@ -75,12 +75,11 @@
                 
                 [subview setNeedsLayout];
                 [subview layoutIfNeeded];
-                NSLog(@"📐 Force resized NosmaiView in layout to: %@ (sublayers: %lu)", NSStringFromCGRect(subview.frame), (unsigned long)subview.layer.sublayers.count);
+                
             }
         }
     }
     
-    NSLog(@"📐 NosmaiNativePreviewView layout updated with bounds: %@", NSStringFromCGRect(self.bounds));
 }
 
 - (void)orientationDidChange:(NSNotification*)notification {
@@ -155,21 +154,8 @@
             }
         }
         
-        // Always use device screen bounds for full-screen coverage
-        UIWindow* keyWindow = [UIApplication sharedApplication].keyWindow;
-        if (keyWindow) {
-            // Use the full screen bounds, not the safe area bounds
-            adjustedFrame = keyWindow.screen.bounds;
-        } else {
-            // Fallback to main screen bounds
-            adjustedFrame = [UIScreen mainScreen].bounds;
-        }
-        
-        // Log the decision
-        if (requestedWidth > 0 && requestedHeight > 0) {
-            NSLog(@"📱 Flutter requested: %.0f x %.0f, but using device bounds: %.0f x %.0f for full-screen coverage", 
-                  requestedWidth, requestedHeight, adjustedFrame.size.width, adjustedFrame.size.height);
-        }
+        // Use provided frame as-is (original approach)
+        adjustedFrame = frame;
         
         _nativeView = [[NosmaiNativePreviewView alloc] initWithFrame:adjustedFrame];
         _nativeView.backgroundColor = [UIColor blackColor];
@@ -313,18 +299,18 @@
     // Reset graceful detach flag
     self.wasDetachedGracefully = NO;
     
-    // 🔧 FIX: Set preview view on NosmaiSDK to ensure proper connection
-    [[NosmaiSDK sharedInstance] setPreviewView:self->_nativeView];
+    // Always proceed with attachment - NosmaiSDK handles processing state internally
+    NSLog(@"🔧 Proceeding with camera attachment");
+    [self completeAttachment];
+}
+
+- (void)completeAttachment {
+    NosmaiCore* core = [NosmaiCore shared];
     
-    // Attach camera to this view
+    // Essential dual attachment (the actual fix)
     [core.camera attachToView:self->_nativeView];
+    [[NosmaiSDK sharedInstance] setPreviewView:self->_nativeView];
     self.isAttached = YES;
-    
-    // Force the camera to use full-screen aspect ratio
-    if (core.camera && [core.camera respondsToSelector:@selector(setVideoGravity:)]) {
-        [core.camera performSelector:@selector(setVideoGravity:) withObject:@"AVLayerVideoGravityResizeAspectFill"];
-        NSLog(@"📐 Set camera video gravity to aspect fill");
-    }
     
     NSLog(@"📺 Camera attached to preview view (frame: %@)", NSStringFromCGRect(self->_nativeView.frame));
     
@@ -332,23 +318,13 @@
     self->_nativeView.layer.contentsGravity = kCAGravityResizeAspectFill;
     self->_nativeView.layer.masksToBounds = YES;
     
-    // Force layout update to ensure proper display on all device sizes
+    // Single layout update - let the system handle proper sizing
     [self->_nativeView setNeedsLayout];
     [self->_nativeView layoutIfNeeded];
     
-    // Add a delayed update to force the NosmaiView to resize properly
+    // Essential fillMode configuration (the key fix)
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self forceNosmaiViewResize];
-        
-        // Force another layout update
-        [self->_nativeView setNeedsLayout];
-        [self->_nativeView layoutIfNeeded];
-    });
-    
-    // Add another delayed update to ensure the SDK doesn't reset our layout
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self forceNosmaiViewResize];
-        NSLog(@"📐 Secondary resize enforcement completed");
+        [self configureNosmaiViewFillMode];
     });
     
     NSLog(@"📐 Native view configured with frame: %@", NSStringFromCGRect(self->_nativeView.frame));
@@ -423,6 +399,19 @@
             [subview setNeedsLayout];
             [subview layoutIfNeeded];
             NSLog(@"📐 Force resized NosmaiView to: %@ (sublayers: %lu)", NSStringFromCGRect(subview.frame), (unsigned long)subview.layer.sublayers.count);
+        }
+    }
+}
+
+- (void)configureNosmaiViewFillMode {
+    // Essential fillMode fix from working iOS app
+    for (UIView *subview in self->_nativeView.subviews) {
+        if ([subview isKindOfClass:NSClassFromString(@"NosmaiView")]) {
+            subview.frame = self->_nativeView.bounds;
+            if ([subview respondsToSelector:@selector(setFillMode:)]) {
+                [subview setValue:@(2) forKey:@"fillMode"]; // Aspect fill
+            }
+            break;
         }
     }
 }
