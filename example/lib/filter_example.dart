@@ -11,14 +11,15 @@ class MetadataFilterExample extends StatefulWidget {
 
 class _MetadataFilterExampleState extends State<MetadataFilterExample> {
   final _nosmai = NosmaiFlutter.instance;
-  
+
   // Filter state management
   Map<NosmaiFilterCategory, List<NosmaiFilter>> _filtersByCategory = {};
   String _currentFilterName = 'None';
   bool _isLoading = false;
-  
+
   // Filter categories for display
-  static const Map<NosmaiFilterCategory, FilterCategoryConfig> _categoryConfigs = {
+  static const Map<NosmaiFilterCategory, FilterCategoryConfig>
+      _categoryConfigs = {
     NosmaiFilterCategory.beauty: FilterCategoryConfig(
       name: 'Beauty Filters',
       icon: Icons.face,
@@ -48,7 +49,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
   }
 
   /// Load and organize filters from all sources
-  /// 
+  ///
   /// This method fetches filters from both local and cloud sources,
   /// then organizes them by category based on their metadata.
   Future<void> _loadFilters() async {
@@ -57,7 +58,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
     try {
       final filters = await _nosmai.fetchFiltersAndEffectsFromAllSources();
       final organized = _organizeFiltersByCategory(filters);
-      
+
       setState(() {
         _filtersByCategory = organized;
         _isLoading = false;
@@ -75,22 +76,23 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
     List<NosmaiFilter> filters,
   ) {
     final organized = <NosmaiFilterCategory, List<NosmaiFilter>>{};
-    
+
     // Initialize empty lists for all categories
     for (final category in NosmaiFilterCategory.values) {
       organized[category] = [];
     }
-    
+
     // Categorize filters
     for (final filter in filters) {
       organized[filter.filterCategory]!.add(filter);
     }
-    
+
     return organized;
   }
 
   /// Log filter counts for debugging
-  void _logFilterCounts(Map<NosmaiFilterCategory, List<NosmaiFilter>> organized) {
+  void _logFilterCounts(
+      Map<NosmaiFilterCategory, List<NosmaiFilter>> organized) {
     debugPrint('📊 Filters loaded:');
     organized.forEach((category, filters) {
       debugPrint('  ${category.name}: ${filters.length} filters');
@@ -98,13 +100,13 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
   }
 
   /// Apply a filter with proper handling based on its type
-  /// 
+  ///
   /// This method handles both local and cloud filters, downloads cloud filters
   /// if needed, and properly manages beauty vs. effect filter application.
   Future<void> _applyFilter(NosmaiFilter filter) async {
     try {
       final isBeautyFilter = await _nosmai.isBeautyFilter();
-      
+
       debugPrint('🎨 Applying filter: ${filter.displayName}');
       debugPrint('   Is beauty filter: $isBeautyFilter');
 
@@ -114,7 +116,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
       }
 
       final filterPath = await _getFilterPath(filter);
-      
+
       if (filterPath != null) {
         await _nosmai.applyEffect(filterPath);
         setState(() {
@@ -164,8 +166,8 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
 
   /// Build a filter chip widget for a specific filter
   Widget _buildFilterChip(NosmaiFilter filter) {
-    final config = _categoryConfigs[filter.filterCategory] ?? 
-                   _categoryConfigs[NosmaiFilterCategory.unknown]!;
+    final config = _categoryConfigs[filter.filterCategory] ??
+        _categoryConfigs[NosmaiFilterCategory.unknown]!;
 
     return Padding(
       padding: const EdgeInsets.all(4),
@@ -173,7 +175,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
         avatar: Icon(config.icon, color: config.color, size: 18),
         label: Text(filter.displayName),
         onPressed: () => _applyFilter(filter),
-        backgroundColor: config.color.withValues(alpha: 0.1),
+        backgroundColor: config.color.withOpacity(0.1),
       ),
     );
   }
@@ -182,7 +184,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
   Widget _buildCategorySection(NosmaiFilterCategory category) {
     final filters = _filtersByCategory[category] ?? [];
     final config = _categoryConfigs[category];
-    
+
     if (filters.isEmpty || config == null) {
       return const SizedBox.shrink();
     }
@@ -197,7 +199,8 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
             _buildCategoryHeader(config, filters.length),
             const SizedBox(height: 8),
             Wrap(
-              children: filters.map((filter) => _buildFilterChip(filter)).toList(),
+              children:
+                  filters.map((filter) => _buildFilterChip(filter)).toList(),
             ),
           ],
         ),
@@ -223,7 +226,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
-            color: config.color.withValues(alpha: 0.2),
+            color: config.color.withOpacity(0.2),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
@@ -253,7 +256,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+            color: Theme.of(context).primaryColor.withOpacity(0.1),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

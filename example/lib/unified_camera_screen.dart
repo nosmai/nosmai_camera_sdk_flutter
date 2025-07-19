@@ -704,7 +704,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
               height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.3),
+                color: Colors.white.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
               
@@ -731,7 +731,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                      side: BorderSide(color: Colors.white.withOpacity(0.3)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -818,7 +818,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
               height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.3),
+                color: Colors.white.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -911,7 +911,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.7),
+                    Colors.black.withOpacity(0.7),
                     Colors.transparent,
                   ],
                 ),
@@ -937,7 +937,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.2),
+                                color: Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -1025,8 +1025,8 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
                       colors: [
-                        Colors.black.withValues(alpha: 0.9),
-                        Colors.black.withValues(alpha: 0.6),
+                        Colors.black.withOpacity(0.9),
+                        Colors.black.withOpacity(0.6),
                         Colors.transparent,
                       ],
                     ),
@@ -1081,7 +1081,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                                             shape: BoxShape.circle,
                                             color: _isRecording
                                                 ? Colors.red
-                                                : Colors.white.withValues(alpha: 0.3),
+                                                : Colors.white.withOpacity(0.3),
                                           ),
                                           child: Icon(
                                             _isRecording
@@ -1180,7 +1180,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.7),
+                  color: Colors.black.withOpacity(0.7),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Row(
@@ -1223,12 +1223,12 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: isDisabled ? 0.1 : 0.2),
+          color: Colors.white.withOpacity(isDisabled ? 0.1 : 0.2),
           shape: BoxShape.circle,
         ),
         child: Icon(
           icon,
-          color: Colors.white.withValues(alpha: isDisabled ? 0.5 : 1.0),
+          color: Colors.white.withOpacity(isDisabled ? 0.5 : 1.0),
           size: size,
         ),
       ),
@@ -1249,7 +1249,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
         decoration: BoxDecoration(
           color: isActive
               ? const Color(0xFF6C5CE7)
-              : Colors.white.withValues(alpha: 0.2),
+              : Colors.white.withOpacity(0.2),
           shape: BoxShape.circle,
         ),
         child: Icon(
@@ -1279,7 +1279,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
             height: 4,
             margin: const EdgeInsets.only(top: 12, bottom: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.3),
+              color: Colors.white.withOpacity(0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -1304,7 +1304,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                     decoration: BoxDecoration(
                       color: isSelected
                           ? const Color(0xFF6C5CE7)
-                          : Colors.white.withValues(alpha: 0.1),
+                          : Colors.white.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -1359,7 +1359,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
         child: Text(
           'No filters available',
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.5),
+            color: Colors.white.withOpacity(0.5),
             fontSize: 14,
           ),
         ),
@@ -1392,11 +1392,11 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                         shape: BoxShape.circle,
                         color: isActive
                             ? const Color(0xFF6C5CE7)
-                            : Colors.white.withValues(alpha: 0.1),
+                            : Colors.white.withOpacity(0.1),
                         border: Border.all(
                           color: isActive
                               ? const Color(0xFF6C5CE7)
-                              : Colors.white.withValues(alpha: 0.2),
+                              : Colors.white.withOpacity(0.2),
                           width: 2,
                         ),
                       ),
@@ -1412,7 +1412,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                       child: Text(
                         filter.name,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
+                          color: Colors.white.withOpacity(0.8),
                           fontSize: 10,
                         ),
                         maxLines: 1,
@@ -1461,7 +1461,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                       ? filter.value.toStringAsFixed(0)
                       : filter.value.toStringAsFixed(filter.max > 10 ? 0 : 2),
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.6),
+                    color: Colors.white.withOpacity(0.6),
                     fontSize: 10,
                   ),
                 ),
@@ -1469,9 +1469,9 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     activeTrackColor: const Color(0xFF6C5CE7),
-                    inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
+                    inactiveTrackColor: Colors.white.withOpacity(0.2),
                     thumbColor: const Color(0xFF6C5CE7),
-                    overlayColor: const Color(0xFF6C5CE7).withValues(alpha: 0.3),
+                    overlayColor: const Color(0xFF6C5CE7).withOpacity(0.3),
                     thumbShape:
                         const RoundSliderThumbShape(enabledThumbRadius: 6),
                     trackHeight: 3,
