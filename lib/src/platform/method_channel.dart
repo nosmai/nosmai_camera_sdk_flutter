@@ -178,7 +178,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'sessionPreset': sessionPreset ?? 'AVCaptureSessionPresetHigh',
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -188,7 +187,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     try {
       await methodChannel.invokeMethod('startProcessing');
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -198,11 +196,9 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     try {
       await methodChannel.invokeMethod('stopProcessing');
     } catch (e) {
-      
       rethrow;
     }
   }
-
 
   @override
   Future<bool> switchCamera() async {
@@ -210,18 +206,15 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
       final result = await methodChannel.invokeMethod<bool>('switchCamera');
       return result ?? false;
     } catch (e) {
-      
       return false;
     }
   }
-
 
   @override
   Future<void> removeAllFilters() async {
     try {
       await methodChannel.invokeMethod('removeAllFilters');
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -231,7 +224,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     try {
       await methodChannel.invokeMethod('setPreviewView');
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -241,7 +233,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     try {
       await methodChannel.invokeMethod('cleanup');
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -255,7 +246,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
       });
       return result ?? false;
     } catch (e) {
-      
       return false;
     }
   }
@@ -267,7 +257,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
           await methodChannel.invokeMethod<List<dynamic>>('getCloudFilters');
       return result ?? [];
     } catch (e) {
-      
       return [];
     }
   }
@@ -281,7 +270,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
       });
       return Map<String, dynamic>.from(result ?? {});
     } catch (e) {
-      
       return {'success': false, 'error': e.toString()};
     }
   }
@@ -293,7 +281,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
           await methodChannel.invokeMethod<List<dynamic>>('getLocalFilters');
       return result ?? [];
     } catch (e) {
-      
       return [];
     }
   }
@@ -305,7 +292,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
           await methodChannel.invokeMethod<List<dynamic>>('getFilters');
       return result ?? [];
     } catch (e) {
-      
       return [];
     }
   }
@@ -317,7 +303,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
           .invokeMethod<List<dynamic>>('getEffectParameters');
       return result ?? [];
     } catch (e) {
-      
       return [];
     }
   }
@@ -332,7 +317,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
       });
       return result ?? false;
     } catch (e) {
-      
       return false;
     }
   }
@@ -344,7 +328,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
       final result = await methodChannel.invokeMethod<bool>('startRecording');
       return result ?? false;
     } catch (e) {
-      
       return false;
     }
   }
@@ -356,7 +339,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
           .invokeMethod<Map<dynamic, dynamic>>('stopRecording');
       return Map<String, dynamic>.from(result ?? {});
     } catch (e) {
-      
       return {'success': false, 'error': e.toString()};
     }
   }
@@ -367,7 +349,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
       final result = await methodChannel.invokeMethod<bool>('isRecording');
       return result ?? false;
     } catch (e) {
-      
       return false;
     }
   }
@@ -379,7 +360,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
           .invokeMethod<double>('getCurrentRecordingDuration');
       return result ?? 0.0;
     } catch (e) {
-      
       return 0.0;
     }
   }
@@ -391,7 +371,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
           .invokeMethod<Map<dynamic, dynamic>>('capturePhoto');
       return Map<String, dynamic>.from(result ?? {});
     } catch (e) {
-      
       return {'success': false, 'error': e.toString()};
     }
   }
@@ -407,7 +386,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
       });
       return Map<String, dynamic>.from(result ?? {});
     } catch (e) {
-      
       return {'isSuccess': false, 'error': e.toString()};
     }
   }
@@ -423,7 +401,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
       });
       return Map<String, dynamic>.from(result ?? {});
     } catch (e) {
-      
       return {'isSuccess': false, 'error': e.toString()};
     }
   }
@@ -433,7 +410,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     try {
       await methodChannel.invokeMethod('clearFilterCache');
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -443,7 +419,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     try {
       await methodChannel.invokeMethod('detachCameraView');
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -456,7 +431,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'brightness': brightness,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -468,7 +442,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'contrast': contrast,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -485,7 +458,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'blue': blue,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -497,7 +469,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'level': level,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -509,7 +480,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'level': level,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -521,7 +491,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'level': level,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -533,7 +502,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'level': level,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -545,7 +513,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'level': level,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -557,7 +524,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'level': level,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -570,7 +536,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'level': level,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -580,7 +545,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     try {
       await methodChannel.invokeMethod('applyGrayscaleFilter');
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -592,7 +556,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'hueAngle': hueAngle,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -606,7 +569,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'tint': tint,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -623,7 +585,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'brightness': brightness,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -633,7 +594,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     try {
       await methodChannel.invokeMethod('resetHSBFilter');
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -643,7 +603,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     try {
       await methodChannel.invokeMethod('removeBuiltInFilters');
     } catch (e) {
-      
       rethrow;
     }
   }
@@ -655,12 +614,9 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'filterName': filterName,
       });
     } catch (e) {
-      
       rethrow;
     }
   }
-
-
 
   @override
   Future<bool> isBeautyEffectEnabled() async {
@@ -669,7 +625,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
           await methodChannel.invokeMethod<bool>('isBeautyEffectEnabled');
       return result ?? false;
     } catch (e) {
-      
       return false;
     }
   }
@@ -681,7 +636,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
           await methodChannel.invokeMethod<bool>('isCloudFilterEnabled');
       return result ?? false;
     } catch (e) {
-      
       return false;
     }
   }

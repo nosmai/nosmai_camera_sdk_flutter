@@ -45,12 +45,10 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
     throw UnimplementedError('stopProcessing() has not been implemented.');
   }
 
-
   /// Switch camera between front and back
   Future<bool> switchCamera() {
     throw UnimplementedError('switchCamera() has not been implemented.');
   }
-
 
   /// Remove all applied filters
   Future<void> removeAllFilters() {
@@ -224,8 +222,6 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
     throw UnimplementedError(
         'removeBuiltInFilterByName() has not been implemented.');
   }
-
-
 
   // License feature availability methods
   Future<bool> isBeautyEffectEnabled() {

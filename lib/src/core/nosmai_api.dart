@@ -28,7 +28,6 @@ class NosmaiFlutter {
   /// Stream controller for download progress events (lazy initialization)
   StreamController<NosmaiDownloadProgress>? _downloadProgressController;
 
-
   /// Stream controller for recording progress events (lazy initialization)
   StreamController<double>? _recordingProgressController;
 
@@ -55,7 +54,6 @@ class NosmaiFlutter {
   /// Camera switch throttling
   static bool _isCameraSwitching = false;
   static DateTime? _lastSwitchTime;
-  static const Duration _defaultThrottleDuration = Duration(milliseconds: 500);
 
   /// Stream of error events
   Stream<NosmaiError> get onError {
@@ -69,7 +67,6 @@ class NosmaiFlutter {
         StreamController<NosmaiDownloadProgress>.broadcast();
     return _downloadProgressController!.stream;
   }
-
 
   /// Stream of recording progress events (duration in seconds)
   Stream<double> get onRecordingProgress {
@@ -86,15 +83,14 @@ class NosmaiFlutter {
   /// Whether recording is active
   bool get isRecording => _isRecording;
 
-
   /// Initialize the SDK
-  /// 
+  ///
   /// [licenseKey] - Your Nosmai SDK license key
-  /// 
+  ///
   /// Returns true if initialization was successful, false otherwise.
   static Future<bool> initialize(String licenseKey) async {
     final instance = NosmaiFlutter.instance;
-    
+
     // Reset instance state if needed
     if (instance._isDisposed) {
       instance._isDisposed = false;
@@ -113,7 +109,7 @@ class NosmaiFlutter {
           NosmaiFlutterPlatform.instance.initWithLicense(licenseKey));
 
       instance._isInitialized = success;
-      
+
       if (success) {
         _preloadEssentialFilters();
       }
@@ -147,7 +143,7 @@ class NosmaiFlutter {
     String? sessionPreset,
   }) async {
     _checkInitialized();
-    
+
     try {
       await NosmaiFlutterPlatform.instance.configureCamera(
         position: position,
@@ -242,14 +238,15 @@ class NosmaiFlutter {
   Future<Map<String, dynamic>> downloadCloudFilter(String filterId) async {
     _checkInitialized();
     try {
-      final result = await NosmaiFlutterPlatform.instance.downloadCloudFilter(filterId);
-      
+      final result =
+          await NosmaiFlutterPlatform.instance.downloadCloudFilter(filterId);
+
       // Clear cache after successful download to ensure updated download status
       if (result['success'] == true) {
         _cachedFilters = null;
         _lastCacheTime = null;
       }
-      
+
       return result;
     } on PlatformException catch (e) {
       throw NosmaiError.filter(
@@ -279,23 +276,22 @@ class NosmaiFlutter {
     }
   }
 
-
   /// Get filters
-  /// 
+  ///
   /// Returns cached filters when available, otherwise fetches fresh data.
-  /// 
+  ///
   /// [forceRefresh] - Whether to force refresh the cache
   Future<List<NosmaiFilter>> getFilters({
     bool forceRefresh = false,
   }) async {
     const cacheValidityDuration = _defaultCacheValidityDuration;
     _checkInitialized();
-    
+
     // Check if cache is valid and not forcing refresh
     if (!forceRefresh && _isCacheValid(cacheValidityDuration)) {
       return _cachedFilters!;
     }
-    
+
     // Fetch fresh filters
     final List<dynamic> filtersData =
         await NosmaiFlutterPlatform.instance.getFilters();
@@ -303,10 +299,10 @@ class NosmaiFlutter {
       final filterMap = Map<String, dynamic>.from(filter);
       return NosmaiFilter.fromMap(filterMap);
     }).toList();
-    
+
     // Update cache
     _updateFilterCache(filters);
-    
+
     return filters;
   }
 
@@ -315,7 +311,7 @@ class NosmaiFlutter {
     // Clear Flutter memory cache
     _cachedFilters = null;
     _lastCacheTime = null;
-    
+
     // Clear native iOS cache
     try {
       await NosmaiFlutterPlatform.instance.clearFilterCache();
@@ -324,12 +320,11 @@ class NosmaiFlutter {
     }
   }
 
-
   /// Check if the filter cache is still valid
   static bool _isCacheValid(Duration validityDuration) {
-    return _cachedFilters != null && 
-           _lastCacheTime != null && 
-           DateTime.now().difference(_lastCacheTime!) < validityDuration;
+    return _cachedFilters != null &&
+        _lastCacheTime != null &&
+        DateTime.now().difference(_lastCacheTime!) < validityDuration;
   }
 
   /// Update the filter cache with new data
@@ -339,31 +334,31 @@ class NosmaiFlutter {
   }
 
   /// Switch camera position
-  /// 
+  ///
   /// Switches between front and back camera with built-in protection against
   /// rapid switching that could cause crashes.
-  /// 
+  ///
   /// Returns true if camera switch was performed, false if ignored.
   Future<bool> switchCamera() async {
     const throttleDuration = Duration(milliseconds: 500);
     _checkInitialized();
-    
+
     // Check if camera switching is in progress - silently ignore
     if (_isCameraSwitching) {
       return false;
     }
-    
+
     // Check throttle timing - silently ignore rapid taps
     final now = DateTime.now();
-    if (_lastSwitchTime != null && 
+    if (_lastSwitchTime != null &&
         now.difference(_lastSwitchTime!) < throttleDuration) {
       return false;
     }
-    
+
     // Set switching state
     _isCameraSwitching = true;
     _lastSwitchTime = now;
-    
+
     try {
       // Perform the camera switch directly
       final success = await NosmaiFlutterPlatform.instance.switchCamera();
@@ -434,7 +429,6 @@ class NosmaiFlutter {
       _isProcessing = false;
       _isRecording = false;
       _activeOperations.clear();
-
     } catch (e) {
       // Cleanup error ignored
     }
@@ -521,15 +515,19 @@ class NosmaiFlutter {
   }
 
   /// Save image data to device gallery
-  Future<Map<String, dynamic>> saveImageToGallery(List<int> imageData, {String? name}) async {
+  Future<Map<String, dynamic>> saveImageToGallery(List<int> imageData,
+      {String? name}) async {
     _checkInitialized();
-    return await NosmaiFlutterPlatform.instance.saveImageToGallery(imageData, name: name);
+    return await NosmaiFlutterPlatform.instance
+        .saveImageToGallery(imageData, name: name);
   }
 
   /// Save video file to device gallery
-  Future<Map<String, dynamic>> saveVideoToGallery(String videoPath, {String? name}) async {
+  Future<Map<String, dynamic>> saveVideoToGallery(String videoPath,
+      {String? name}) async {
     _checkInitialized();
-    return await NosmaiFlutterPlatform.instance.saveVideoToGallery(videoPath, name: name);
+    return await NosmaiFlutterPlatform.instance
+        .saveVideoToGallery(videoPath, name: name);
   }
 
   // Built-in Filter Methods
@@ -576,9 +574,13 @@ class NosmaiFlutter {
   }
 
   /// Apply RGB filter
-  Future<void> applyRGBFilter({required double red, required double green, required double blue}) async {
+  Future<void> applyRGBFilter(
+      {required double red,
+      required double green,
+      required double blue}) async {
     _checkInitialized();
-    await NosmaiFlutterPlatform.instance.applyRGBFilter(red: red, green: green, blue: blue);
+    await NosmaiFlutterPlatform.instance
+        .applyRGBFilter(red: red, green: green, blue: blue);
   }
 
   /// Apply sharpening filter
@@ -594,15 +596,21 @@ class NosmaiFlutter {
   }
 
   /// Apply white balance filter
-  Future<void> applyWhiteBalance({required double temperature, required double tint}) async {
+  Future<void> applyWhiteBalance(
+      {required double temperature, required double tint}) async {
     _checkInitialized();
-    await NosmaiFlutterPlatform.instance.applyWhiteBalance(temperature: temperature, tint: tint);
+    await NosmaiFlutterPlatform.instance
+        .applyWhiteBalance(temperature: temperature, tint: tint);
   }
 
   /// Adjust HSB (Hue, Saturation, Brightness)
-  Future<void> adjustHSB({required double hue, required double saturation, required double brightness}) async {
+  Future<void> adjustHSB(
+      {required double hue,
+      required double saturation,
+      required double brightness}) async {
     _checkInitialized();
-    await NosmaiFlutterPlatform.instance.adjustHSB(hue: hue, saturation: saturation, brightness: brightness);
+    await NosmaiFlutterPlatform.instance
+        .adjustHSB(hue: hue, saturation: saturation, brightness: brightness);
   }
 
   /// Reset HSB filter
@@ -668,9 +676,9 @@ class NosmaiFlutter {
 
       if (_isInitialized) {
         await NosmaiFlutterPlatform.instance.cleanup().timeout(
-          const Duration(seconds: 5),
-          onTimeout: () {},
-        );
+              const Duration(seconds: 5),
+              onTimeout: () {},
+            );
       }
 
       _isInitialized = false;
@@ -688,7 +696,8 @@ class NosmaiFlutter {
       throw NosmaiError.general(
         type: NosmaiErrorType.stateError,
         message: 'NosmaiFlutter instance has been disposed',
-        details: 'Call NosmaiFlutter.initialize() again to reinitialize the SDK',
+        details:
+            'Call NosmaiFlutter.initialize() again to reinitialize the SDK',
       );
     }
     if (!_isInitialized) {

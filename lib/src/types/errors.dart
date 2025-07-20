@@ -26,7 +26,7 @@ class NosmaiError implements Exception {
   factory NosmaiError.fromMap(Map<String, dynamic> map) {
     final codeString = map['code']?.toString() ?? 'UNKNOWN_ERROR';
     final type = _parseErrorType(codeString);
-    
+
     return NosmaiError(
       type: type,
       code: codeString,
@@ -253,25 +253,25 @@ class NosmaiRetryManager {
     bool Function(dynamic error)? shouldRetry,
   }) async {
     int attempts = 0;
-    
+
     while (attempts < maxRetries) {
       try {
         return await operation();
       } catch (error) {
         attempts++;
-        
+
         if (attempts >= maxRetries) {
           rethrow;
         }
-        
+
         if (shouldRetry != null && !shouldRetry(error)) {
           rethrow;
         }
-        
+
         await Future.delayed(delay);
       }
     }
-    
+
     throw StateError('Max retry attempts exceeded');
   }
 }

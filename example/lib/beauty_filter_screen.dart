@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
+import 'package:nosmai_camera_sdk/nosmai_camera_sdk.dart';
 
 /// Dedicated screen for beauty filters and color adjustments
-/// 
+///
 /// This screen demonstrates advanced filter capabilities including:
 /// - Real-time beauty filters (skin smoothing, whitening, face slimming)
 /// - Color adjustments (brightness, contrast, RGB)
 /// - Effect filters (sharpening, hue, white balance)
 /// - HSB (Hue, Saturation, Brightness) controls
 /// - Organized category-based interface
-/// 
+///
 /// The screen uses a tabbed interface to organize different filter types
 /// and provides real-time preview of all adjustments.
 class BeautyFilterScreen extends StatefulWidget {
@@ -84,7 +84,7 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
   }
 
   /// Initialize camera for beauty filter screen
-  /// 
+  ///
   /// Configures the camera with front-facing position (typical for beauty filters)
   /// and starts processing. Face detection is automatically enabled when beauty
   /// filters are used.
@@ -109,7 +109,7 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
   }
 
   /// Apply all beauty filters with current values
-  /// 
+  ///
   /// This method applies all beauty enhancement filters including skin smoothing,
   /// whitening, face slimming, eye enlargement, and nose size adjustment.
   Future<void> _applyBeautyFilters() async {
@@ -125,7 +125,7 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
   }
 
   /// Apply color adjustment filters
-  /// 
+  ///
   /// This method applies brightness, contrast, and RGB color adjustments
   /// to enhance the overall color appearance of the video feed.
   Future<void> _applyColorFilters() async {
@@ -143,7 +143,7 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
   }
 
   /// Apply effect filters
-  /// 
+  ///
   /// This method applies various effect filters including sharpening,
   /// hue adjustment, and white balance correction.
   Future<void> _applyEffectFilters() async {
@@ -160,7 +160,7 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
   }
 
   /// Apply HSB (Hue, Saturation, Brightness) filters
-  /// 
+  ///
   /// This method applies HSB adjustments. Note that hue adjustment is handled
   /// separately since it's not implemented in the HSB filter directly.
   Future<void> _applyHSBFilters() async {
@@ -188,7 +188,7 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
   }
 
   /// Reset all filters to their default values
-  /// 
+  ///
   /// This method resets all filter values to their defaults and removes
   /// any applied filters from the SDK.
   Future<void> _resetAllFilters() async {
@@ -241,12 +241,12 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
         decoration: BoxDecoration(
           color: isSelected
               ? const Color(0xFF6C5CE7)
-              : Colors.white.withOpacity(0.1),
+              : Colors.white.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
                 ? const Color(0xFF6C5CE7)
-                : Colors.white.withOpacity(0.3),
+                : Colors.white.withValues(alpha: 0.3),
           ),
         ),
         child: Row(
@@ -306,7 +306,7 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
               activeTrackColor: const Color(0xFF6C5CE7),
               inactiveTrackColor: Colors.white30,
               thumbColor: const Color(0xFF6C5CE7),
-              overlayColor: const Color(0xFF6C5CE7).withOpacity(0.3),
+              overlayColor: const Color(0xFF6C5CE7).withValues(alpha: 0.3),
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
               trackHeight: 3,
             ),
@@ -541,7 +541,7 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withOpacity(0.8),
+                    Colors.black.withValues(alpha: 0.8),
                   ],
                 ),
               ),
@@ -555,12 +555,17 @@ class _BeautyFilterScreenState extends State<BeautyFilterScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
                       child: Row(
-                        children: _filterCategories.map((category) {
-                          return [
-                            _buildCategoryChip(category.id, category.label, category.icon),
-                            if (category != _filterCategories.last) const SizedBox(width: 8),
-                          ];
-                        }).expand((widgets) => widgets).toList(),
+                        children: _filterCategories
+                            .map((category) {
+                              return [
+                                _buildCategoryChip(
+                                    category.id, category.label, category.icon),
+                                if (category != _filterCategories.last)
+                                  const SizedBox(width: 8),
+                              ];
+                            })
+                            .expand((widgets) => widgets)
+                            .toList(),
                       ),
                     ),
 

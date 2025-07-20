@@ -1,5 +1,5 @@
 import 'package:flutter/widgets.dart';
-import '../../nosmai_flutter.dart';
+import '../../nosmai_camera_sdk.dart';
 
 /// Simple mixin for managing Nosmai camera lifecycle in Flutter screens
 ///
@@ -40,8 +40,6 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
     super.initState();
     _nosmaiFlutter = NosmaiFlutter.instance;
     _isScreenActive = true;
-
-    
   }
 
   @override
@@ -51,22 +49,16 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// Called when the camera is successfully initialized
-  void onCameraInitialized() {
-    
-  }
+  void onCameraInitialized() {}
 
   /// Called when the camera encounters an error
-  void onCameraError(String error) {
-    
-  }
+  void onCameraError(String error) {}
 
   /// Call this method before navigating away from the camera screen
   Future<void> cleanupBeforeNavigation() async {
     if (!_isScreenActive) return;
 
     _isScreenActive = false;
-
-    
 
     try {
       // Detach camera view gracefully
@@ -78,10 +70,8 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
           await _nosmaiFlutter.stopProcessing();
         }
       }
-
-      
     } catch (e) {
-      
+      // Ignore cleanup errors
     }
   }
 
@@ -91,8 +81,6 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
 
     _isScreenActive = false;
 
-    
-
     try {
       // Detach camera view gracefully
       if (_nosmaiFlutter.isInitialized) {
@@ -103,10 +91,8 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
           await _nosmaiFlutter.stopProcessing();
         }
       }
-
-      
     } catch (e) {
-      
+      // Ignore disposal errors
     }
   }
 

@@ -128,8 +128,9 @@ class NosmaiFilter {
       sourceType: parsedSourceType,
       isFree: map['isFree'] as bool? ?? true,
       isDownloaded: map['isDownloaded'] as bool? ?? false,
-      previewUrl:
-          map['previewImageBase64']?.toString() ?? map['previewUrl']?.toString() ?? map['thumbnailUrl']?.toString(),
+      previewUrl: map['previewImageBase64']?.toString() ??
+          map['previewUrl']?.toString() ??
+          map['thumbnailUrl']?.toString(),
       category: map['category']?.toString(),
       downloadCount: _parseIntSafely(map['downloadCount']) ?? 0,
       price: _parseIntSafely(map['price']) ?? 0,
@@ -367,4 +368,3 @@ class NosmaiPhotoResult {
     };
   }
 }
-

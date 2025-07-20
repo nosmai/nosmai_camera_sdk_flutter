@@ -2,8 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
-import 'TestingScreen.dart';
+import 'package:nosmai_camera_sdk/nosmai_camera_sdk.dart';
 import 'unified_camera_screen.dart';
 
 /// Main entry point for the Nosmai Camera SDK example application
@@ -11,8 +10,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    await NosmaiFlutter.initialize(
-        'NOSMAI-28b2eef6067aa521a0bddbcf058e14b08c0ab71bc6b366f4');
+    await NosmaiFlutter.initialize('YOUR_API_KEY_HERE');
   } catch (e) {
     print('Failed to initialize Nosmai SDK: $e');
   }
@@ -142,14 +140,14 @@ class _HomePageState extends State<HomePage> {
         gradient: LinearGradient(
           colors: [
             _primaryColor,
-            _primaryColor.withOpacity(0.6),
+            _primaryColor.withValues(alpha: 0.6),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: _primaryColor.withOpacity(0.3),
+            color: _primaryColor.withValues(alpha: 0.3),
             blurRadius: 30,
             spreadRadius: 5,
           ),
@@ -187,7 +185,7 @@ class _HomePageState extends State<HomePage> {
           'Professional filters & effects',
           style: TextStyle(
             fontSize: isSmallScreen ? 14 : 16,
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
             letterSpacing: 0.5,
           ),
         ),
@@ -214,7 +212,7 @@ class _HomePageState extends State<HomePage> {
               gradient: LinearGradient(
                 colors: [
                   _primaryColor,
-                  _primaryColor.withOpacity(0.8),
+                  _primaryColor.withValues(alpha: 0.8),
                 ],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
@@ -222,7 +220,7 @@ class _HomePageState extends State<HomePage> {
               borderRadius: BorderRadius.circular(30),
               boxShadow: [
                 BoxShadow(
-                  color: _primaryColor.withOpacity(0.4),
+                  color: _primaryColor.withValues(alpha: 0.4),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -361,7 +359,7 @@ class _HomePageState extends State<HomePage> {
       'Version 1.0.0',
       style: TextStyle(
         fontSize: 12,
-        color: Colors.white.withOpacity(0.3),
+        color: Colors.white.withValues(alpha: 0.3),
       ),
     );
   }
@@ -382,10 +380,10 @@ class _HomePageState extends State<HomePage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
           width: 1,
         ),
       ),
@@ -402,7 +400,7 @@ class _HomePageState extends State<HomePage> {
               width: isVerySmallScreen ? 24 : (isSmallScreen ? 28 : 36),
               height: isVerySmallScreen ? 24 : (isSmallScreen ? 28 : 36),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
+                color: color.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -435,7 +433,7 @@ class _HomePageState extends State<HomePage> {
               child: Text(
                 subtitle,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                   fontSize: isVerySmallScreen ? 8 : (isSmallScreen ? 9 : 11),
                 ),
                 overflow: TextOverflow.ellipsis,

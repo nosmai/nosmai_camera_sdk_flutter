@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
+import 'package:nosmai_camera_sdk/nosmai_camera_sdk.dart';
 
 /// Singleton manager for Nosmai SDK lifecycle management
 ///

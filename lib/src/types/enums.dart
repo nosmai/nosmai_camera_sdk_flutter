@@ -38,24 +38,24 @@ enum NosmaiErrorType {
   platformError,
   networkError,
   invalidParameter,
-  
+
   // SDK initialization errors
   sdkNotInitialized,
   invalidLicense,
   licenseExpired,
-  
+
   // Camera errors
   cameraPermissionDenied,
   cameraUnavailable,
   cameraConfigurationFailed,
   cameraSwitchFailed,
-  
+
   // Filter errors
   filterNotFound,
   filterInvalidFormat,
   filterLoadFailed,
   filterDownloadFailed,
-  
+
   // Recording errors
   recordingPermissionDenied,
   recordingStorageFull,

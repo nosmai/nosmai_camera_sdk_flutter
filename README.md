@@ -35,7 +35,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  nosmai_camera_sdk: ^1.0.2+1
+  nosmai_camera_sdk: ^1.0.3
 ```
 
 ## Setup

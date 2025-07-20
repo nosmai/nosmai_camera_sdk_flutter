@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../nosmai_flutter.dart';
+import '../../nosmai_camera_sdk.dart';
 
 /// A widget that displays the Nosmai camera preview with proper lifecycle management
 class NosmaiCameraPreview extends StatefulWidget {
@@ -120,10 +120,9 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     try {
       if (_isInitialized && _nosmaiFlutter.isProcessing) {
         await _nosmaiFlutter.stopProcessing();
-        
       }
     } catch (e) {
-      
+      // Ignore camera pause errors
     }
   }
 
@@ -131,10 +130,8 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     try {
       if (_isInitialized && !_nosmaiFlutter.isProcessing) {
         await _nosmaiFlutter.startProcessing();
-        
       }
     } catch (e) {
-      
       // If resume fails, camera is still pre-warmed, just reset state
       if (mounted) {
         setState(() {
@@ -147,17 +144,13 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
 
   Future<void> _cleanupCamera() async {
     try {
-      
-
       // Stop processing if active
       if (_nosmaiFlutter.isProcessing) {
         await _nosmaiFlutter.stopProcessing();
-        
       }
 
       // Detach camera view
       await _nosmaiFlutter.detachCameraView();
-      
 
       // Brief delay for cleanup
       await Future.delayed(const Duration(milliseconds: 200));
@@ -169,10 +162,7 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
           _isInitializing = false;
         });
       }
-
-      
     } catch (e) {
-      
       if (mounted) {
         setState(() {
           _isInitialized = false;
@@ -185,23 +175,15 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
   /// Cleanup camera view on dispose
   void _cleanupOnDispose() {
     try {
-      
-
       // Fire and forget - don't wait for async operations
-      _nosmaiFlutter.detachCameraView().catchError((e) {
-        
-      });
-
-      
+      _nosmaiFlutter.detachCameraView().catchError((e) {});
     } catch (e) {
-      
+      // Ignore disposal errors
     }
   }
 
   /// Manually reinitialize the camera (useful for error recovery)
   Future<void> reinitialize() async {
-    
-
     // Force cleanup
     await _cleanupCamera();
 
@@ -219,7 +201,6 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
 
     // Call onInitialized callback
     widget.onInitialized?.call();
-    
   }
 
   @override
