@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
@@ -5,7 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 
 /// Unified camera screen that demonstrates comprehensive Nosmai SDK functionality
-/// 
+///
 /// This screen showcases:
 /// - Live camera preview with filters
 /// - Photo capture and video recording
@@ -14,7 +16,7 @@ import 'dart:async';
 /// - Cloud filter downloading
 /// - Camera switching
 /// - Responsive UI design
-/// 
+///
 /// The implementation follows Flutter best practices with proper error handling,
 /// performance optimizations, and a clean, maintainable code structure.
 class UnifiedCameraScreen extends StatefulWidget {
@@ -32,12 +34,11 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   // Camera state
   bool _isRecording = false;
   bool _isFrontCamera = true;
-  
+
   // Filter state
   bool _isCloudFiltersLoading = false;
   int _selectedCategoryIndex = 0;
   FilterItem? _activeFilter;
-  
 
   // Filter categories with pre-defined filters
   late final List<FilterCategory> _categories;
@@ -220,7 +221,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   Future<void> _loadEffectFilters() async {
     try {
       final filters = await _nosmai.getFilters();
-      
+
       final effectFilters = <FilterItem>[];
 
       for (final filter in filters) {
@@ -243,7 +244,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   }
 
   /// Load cloud filters from the SDK
-  /// 
+  ///
   /// This method fetches available cloud filters and logs the response for debugging.
   /// Empty results are normal and don't indicate an error.
   Future<void> _loadCloudFilters() async {
@@ -255,12 +256,6 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
 
     try {
       final filters = await _nosmai.getCloudFilters();
-
-      if (filters.isEmpty) {
-        debugPrint('ℹ️ No cloud filters available - may be due to network issues or license restrictions');
-      } else {
-        _logCloudFiltersResponse(filters);
-      }
 
       final cloudEffectFilters = _createCloudFilterItems(filters);
       _updateCloudFiltersInUI(cloudEffectFilters);
@@ -276,30 +271,24 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
     }
   }
 
-  /// Log cloud filters response for debugging
-  void _logCloudFiltersResponse(List<dynamic> filters) {
-    debugPrint('--- Fetched Cloud Filters Response ---');
-    debugPrint('Found ${filters.length} cloud filters');
-    for (final filter in filters) {
-      debugPrint(filter.toMap().toString());
-    }
-    debugPrint('------------------------------------');
-  }
-
   /// Create FilterItem objects from cloud filters
   List<FilterItem> _createCloudFilterItems(List<dynamic> filters) {
-    return filters.map((filter) => FilterItem(
-      id: filter.id,
-      name: filter.displayName,
-      type: FilterType.effect,
-      path: filter.path, // Path is null if not downloaded
-    )).toList();
+    return filters
+        .map((filter) => FilterItem(
+              id: filter.id,
+              name: filter.displayName,
+              type: FilterType.effect,
+              path: filter.path, // Path is null if not downloaded
+              isDownloaded: filter.isDownloaded, // Check if already downloaded
+            ))
+        .toList();
   }
 
   /// Update cloud filters in the UI
   void _updateCloudFiltersInUI(List<FilterItem> cloudFilters) {
     setState(() {
-      final cloudCategoryIndex = _categories.indexWhere((cat) => cat.name == 'Cloud');
+      final cloudCategoryIndex =
+          _categories.indexWhere((cat) => cat.name == 'Cloud');
       if (cloudCategoryIndex != -1) {
         _categories[cloudCategoryIndex].filters = cloudFilters;
       }
@@ -320,16 +309,8 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
     }
   }
 
-  // Method removed - was unused
-
-  /// Setup camera immediately without waiting for filters
-  // Method removed - was unused
-
-  /// Verify camera is truly ready (quick check)
-  // Method removed - was unused
-
   /// Load filters in background without blocking the UI
-  /// 
+  ///
   /// This method loads both effect and cloud filters asynchronously to avoid
   /// blocking the camera interface during startup.
   Future<void> _loadFiltersInBackground() async {
@@ -337,15 +318,12 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
     Future.microtask(() async {
       await _loadEffectFilters();
     });
-    
+
     // Load cloud filters asynchronously
     Future.microtask(() async {
       await _loadCloudFilters();
     });
   }
-
-
-  // Method removed - was unused
 
   void _toggleFilterPanel() {
     setState(() {
@@ -418,10 +396,10 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   Future<void> _applyEffectFilter(FilterItem filter) async {
     try {
       // Check if this is a cloud filter that needs to be downloaded
-      if (filter.path == null || filter.path!.isEmpty) {
+      if ((filter.path == null || filter.path!.isEmpty) &&
+          !filter.isDownloaded) {
         // This is a cloud filter that needs to be downloaded
-        debugPrint('📥 Downloading cloud filter: ${filter.name}');
-        
+
         // Show loading indicator
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -445,20 +423,19 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
             ),
           );
         }
-        
+
         // Download the cloud filter
         final downloadResult = await _nosmai.downloadCloudFilter(filter.id);
-        
+
         if (downloadResult['success'] == true) {
           // Update filter path with downloaded path
           final downloadedPath = downloadResult['path'] as String?;
           if (downloadedPath != null) {
             filter.path = downloadedPath;
-            debugPrint('✅ Cloud filter downloaded successfully: $downloadedPath');
-            
+
             // Apply the downloaded filter
-            await _nosmai.applyEffect(downloadedPath);
-            
+            await _nosmai.applyFilter(downloadedPath);
+
             // Show success message
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -477,11 +454,9 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
         }
       } else {
         // This is a local filter or already downloaded cloud filter
-        debugPrint('🎨 Applying local/cached filter: ${filter.name}');
-        await _nosmai.applyEffect(filter.path!);
+        await _nosmai.applyFilter(filter.path!);
       }
     } catch (e) {
-      debugPrint('❌ Error applying effect filter: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -598,20 +573,21 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
         debugPrint('❌ SDK not initialized, cannot switch camera');
         return;
       }
-      
+
       final switched = await _nosmai.switchCamera();
-      
+
       if (switched) {
         setState(() {
           _isFrontCamera = !_isFrontCamera;
         });
-        debugPrint('✅ Camera switched successfully to ${_isFrontCamera ? 'front' : 'back'}');
+        debugPrint(
+            '✅ Camera switched successfully to ${_isFrontCamera ? 'front' : 'back'}');
       } else {
         debugPrint('🔄 Camera switch throttled - ignored rapid tap');
       }
     } catch (e) {
       debugPrint('❌ Camera switch failed: $e');
-      
+
       // Handle specific error types
       if (e is NosmaiError) {
         _handleCameraError(e);
@@ -655,7 +631,8 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
             Text(message),
             if (actions != null && actions.isNotEmpty) ...[
               const SizedBox(height: 16),
-              const Text('Suggested actions:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('Suggested actions:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               ...actions.map((action) => Text('• $action')),
             ],
@@ -707,7 +684,6 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                 color: Colors.white.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
-              
             ),
             const Icon(
               Icons.check_circle,
@@ -893,7 +869,6 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Camera Preview - Show immediately for instant opening like TikTok
           const Positioned.fill(
             child: RepaintBoundary(
               child: NosmaiCameraPreview(),
@@ -956,10 +931,12 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                       Row(
                         children: [
                           _buildIconButton(
-                            icon: NosmaiFlutter.isCameraSwitching 
-                                ? Icons.hourglass_empty_rounded 
+                            icon: NosmaiFlutter.isCameraSwitching
+                                ? Icons.hourglass_empty_rounded
                                 : Icons.flip_camera_ios_rounded,
-                            onTap: NosmaiFlutter.isCameraSwitching ? null : _switchCamera,
+                            onTap: NosmaiFlutter.isCameraSwitching
+                                ? null
+                                : _switchCamera,
                           ),
                           const SizedBox(width: 12),
                           _buildIconButton(
@@ -1171,7 +1148,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                 ),
               ),
             ),
-          
+
           // Filter Loading Indicator (non-blocking)
           if (_isCloudFiltersLoading)
             Positioned(
@@ -1527,6 +1504,7 @@ class FilterItem {
   final double min;
   final double max;
   String? path;
+  final bool isDownloaded;
 
   FilterItem({
     required this.id,
@@ -1536,6 +1514,7 @@ class FilterItem {
     this.min = 0.0,
     this.max = 1.0,
     this.path,
+    this.isDownloaded = true, // Default to true for local filters
   });
 
   double get defaultValue {

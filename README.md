@@ -140,7 +140,7 @@ To use local .nosmai filters in your app, you need to add them to your project a
    final localFilters = await NosmaiFlutter.instance.getLocalFilters();
    
    // Apply a specific local filter
-   await NosmaiFlutter.instance.applyEffect('assets/filters/your_filter.nosmai');
+   await NosmaiFlutter.instance.applyFilter('assets/filters/your_filter.nosmai');
    ```
 
 > **Note**: Place your .nosmai filter files in the `assets/filters/` directory and ensure they are properly declared in `pubspec.yaml`. The plugin will automatically discover and include these filters when calling `getLocalFilters()`.
@@ -299,10 +299,7 @@ await nosmai.applyWhiteBalance(
 ```dart
 final nosmai = NosmaiFlutter.instance;
 
-// Enable face detection for beauty filters
-await nosmai.setFaceDetectionEnabled(true);
-
-// Skin smoothing (requires face detection)
+// Skin smoothing (face detection is automatic)
 await nosmai.applySkinSmoothing(0.7); // 0.0 to 10.0
 
 // Skin whitening
@@ -323,25 +320,22 @@ await nosmai.applyNoseSize(50.0); // 0.0 to 100.0
 ```dart
 final nosmai = NosmaiFlutter.instance;
 
-// Apply .nosmai effect files
-await nosmai.applyEffect('/path/to/filter.nosmai');
-
-// Load and apply custom filters
-final success = await nosmai.loadNosmaiFilter('/path/to/filter.nosmai');
+// Apply .nosmai filter files
+final success = await nosmai.applyFilter('/path/to/filter.nosmai');
 if (success) {
   // Filter is now loaded and applied
 }
 
-// Get cached filters with automatic performance optimization
-final filters = await nosmai.getCachedFilters();
-for (final filter in filters) {
-  if (filter is NosmaiLocalFilter) {
-    await nosmai.applyEffect(filter.path);
+// Get all filters (local + cloud) with automatic caching
+final allFilters = await nosmai.getFilters();
+for (final filter in allFilters) {
+  if (filter.isLocalFilter) {
+    await nosmai.applyFilter(filter.path);
   }
 }
 
 // Clear cache if needed
-await nosmai.clearFilterCache();
+await nosmai.clearCache();
 ```
 
 ### Camera Controls and Media Capture
@@ -357,8 +351,6 @@ if (switched) {
   // Switch was ignored due to throttling (no error thrown)
 }
 
-// Or use immediate switch (advanced)
-// await nosmai.switchCameraImmediate();
 
 // Capture photo with applied filters
 final result = await nosmai.capturePhoto();
@@ -427,16 +419,40 @@ final nosmai = NosmaiFlutter.instance;
 // Get filters with built-in caching
 final allFilters = await nosmai.getFilters();
 
-// Apply filters based on type
+// Apply filters based on type and source
 for (final filter in allFilters) {
-  if (filter is NosmaiLocalFilter) {
-    await nosmai.applyEffect(filter.path);
+  if (filter.isLocalFilter && filter.isEffect) {
+    await nosmai.applyFilter(filter.path);
+  } else if (filter.isCloudFilter && filter.isDownloaded) {
+    await nosmai.applyFilter(filter.path);
   }
 }
 
 // Clear cache when needed
 await nosmai.clearCache();
 ```
+
+## What's New in Latest Version
+
+### Major Code Quality Improvements
+- **Enterprise-grade code standards**: All unprofessional comments, emojis, and debug artifacts removed
+- **Method consolidation**: Removed 9 duplicate/unused methods for cleaner API surface
+- **Unified filter model**: Single `NosmaiFilter` class supports both local and cloud filters seamlessly
+- **Thread safety enhancements**: Improved concurrent access protection throughout the codebase
+- **Professional naming conventions**: All method names follow industry standards
+
+### Consolidated API Changes
+- **`initialize()`**: Single initialization method (removed `initWithLicense()` duplicate)
+- **`applyFilter()`**: Unified filter application (consolidated `applyEffect()` and `loadNosmaiFilter()`)
+- **`switchCamera()`**: Single camera switching method with built-in throttling (removed `switchCameraImmediate()`)
+- **`clearCache()`**: Works with both Flutter memory and native cache (consolidated duplicate methods)
+- **`isBeautyFilterEnabled()`**: Professional naming (renamed from `isBeautyFilter()`)
+
+### Enhanced Filter System
+- **Automatic type detection**: Filters are automatically classified as 'filter' or 'effect' based on category
+- **Cloud filter support**: Improved category-to-type mapping for cloud filters using `filterCategory` field
+- **Preview data handling**: Enhanced support for filter preview images and metadata
+- **Local framework integration**: Updated to use local Nosmai framework for better performance
 
 ## API Reference
 
@@ -451,14 +467,12 @@ Main class for interacting with the Nosmai SDK.
 - `bool isRecording` - Whether video recording is active
 - `Stream<NosmaiError> onError` - Stream of error events
 - `Stream<NosmaiDownloadProgress> onDownloadProgress` - Stream of download progress
-- `Stream<NosmaiSdkStateInfo> onStateChanged` - Stream of SDK state changes
 - `Stream<double> onRecordingProgress` - Stream of recording progress (duration in seconds)
 
 #### Methods
 
 ##### Initialization & Lifecycle
-- `static Future<bool> initialize(String licenseKey)` - Initialize SDK (recommended)
-- `Future<bool> initWithLicense(String licenseKey)` - Initialize SDK with license (basic)
+- `static Future<bool> initialize(String licenseKey)` - Initialize SDK with license (consolidated method)
 - `Future<void> configureCamera({required NosmaiCameraPosition position, String? sessionPreset})` - Configure camera
 - `Future<void> startProcessing()` - Start video processing
 - `Future<void> stopProcessing()` - Stop video processing
@@ -466,12 +480,10 @@ Main class for interacting with the Nosmai SDK.
 - `void dispose()` - Dispose instance and stream controllers
 
 ##### Camera Controls
-- `Future<bool> switchCamera()` - Switch camera with built-in protection (recommended)
-- `Future<void> switchCameraImmediate()` - Switch camera immediately (advanced)
+- `Future<bool> switchCamera()` - Switch camera with built-in throttling protection (consolidated method)
 - `static bool get isCameraSwitching` - Whether camera switch is in progress
 - `Future<void> setPreviewView()` - Set preview view (iOS only)
 - `Future<void> detachCameraView()` - Detach camera view
-- `Future<void> setFaceDetectionEnabled(bool enable)` - Enable/disable face detection
 
 ##### Media Capture
 - `Future<NosmaiPhotoResult> capturePhoto()` - Capture photo with applied filters
@@ -498,20 +510,17 @@ Main class for interacting with the Nosmai SDK.
 - `Future<void> applyEyeEnlargement(double level)` - Apply eye enlargement (0.0 to 10.0)
 - `Future<void> applyNoseSize(double size)` - Apply nose size adjustment (0.0 to 100.0)
 
-##### Effect Filters
-- `Future<bool> applyEffect(String effectPath)` - Apply .nosmai effect file
-- `Future<bool> loadNosmaiFilter(String filePath)` - Load custom filter
+##### Effect Filters (Consolidated)
+- `Future<bool> applyFilter(String filterPath)` - Apply .nosmai filter (unified method for all filter types)
 - `Future<List<NosmaiEffectParameter>> getEffectParameters()` - Get current effect parameters
 - `Future<bool> setEffectParameter(String parameterName, double value)` - Set effect parameter
 
-##### Filter Management
-- `Future<List<NosmaiFilter>> getFilters({bool forceRefresh})` - Get filters with built-in caching (recommended)
-- `Future<void> clearCache()` - Clear filter cache
-- `Future<void> setCacheConfig(Map<String, dynamic> config)` - Configure cache settings
-- `Future<List<NosmaiFilter>> fetchFiltersAndEffectsFromAllSources()` - Get all filters (basic)
-- `Future<List<NosmaiFilter>> getLocalFilters()` - Get local filters only
-- `Future<List<NosmaiFilter>> getCloudFilters()` - Get cloud filters only
+##### Filter Management (Enhanced)
+- `Future<List<NosmaiFilter>> getFilters({bool forceRefresh})` - Get all filters (local + cloud) with unified model and built-in caching
+- `Future<List<NosmaiFilter>> getLocalFilters()` - Get local .nosmai filters only
+- `Future<List<NosmaiFilter>> getCloudFilters()` - Get cloud filters with enhanced category mapping
 - `Future<Map<String, dynamic>> downloadCloudFilter(String filterId)` - Download cloud filter
+- `Future<void> clearCache()` - Clear both Flutter memory and native cache (consolidated method)
 
 ##### Filter Removal
 - `Future<void> removeAllFilters()` - Remove all applied filters
@@ -524,7 +533,7 @@ Main class for interacting with the Nosmai SDK.
 - `Future<void> applyGrayscaleFilter()` - Apply grayscale filter
 
 ##### License Feature Methods
-- `Future<bool> isBeautyEffectEnabled()` - Check if beauty effects are enabled for license
+- `Future<bool> isBeautyFilterEnabled()` - Check if beauty filters are enabled for license (professional naming)
 - `Future<bool> isCloudFilterEnabled()` - Check if cloud filters are enabled for license
 
 ##### Utility Methods
@@ -541,6 +550,10 @@ Main class for interacting with the Nosmai SDK.
 - `effect` - Creative/artistic effects (glitch, holographic, etc.)
 - `filter` - Standard filters (color adjustments, basic effects, etc.)
 - `unknown` - Unknown or uncategorized filters
+
+#### NosmaiFilterSourceType
+- `filter` - Standard filter type
+- `effect` - Effect type
 
 #### NosmaiError
 - `String code` - Error code
@@ -572,25 +585,39 @@ Main class for interacting with the Nosmai SDK.
 
 ### Filter Types
 
-#### NosmaiLocalFilter
-- `String name` - Filter name
-- `String path` - Local file path
-- `String displayName` - Human-readable name
-- `int fileSize` - File size in bytes
-- `String type` - Filter type ('local')
-- `NosmaiFilterCategory filterCategory` - Filter category
+#### NosmaiFilter (Enhanced Unified Filter Model)
+The unified filter model supports both local and cloud filters with automatic type detection and enhanced metadata support.
 
-#### NosmaiCloudFilter
-- `String id` - Unique cloud filter ID
+**Core Properties:**
+- `String id` - Unique filter identifier
 - `String name` - Filter name
 - `String displayName` - Human-readable name
-- `bool isFree` - Whether filter is free
-- `bool isDownloaded` - Whether filter is downloaded
-- `String? localPath` - Local path if downloaded
-- `int? fileSize` - File size in bytes
-- `String? previewUrl` - Preview image URL
+- `String description` - Filter description
+- `String path` - File path
+- `int fileSize` - File size in bytes
+- `String type` - Source type ('local' or 'cloud')
+- `NosmaiFilterCategory filterCategory` - Filter category (beauty, effect, filter, unknown)
+- `NosmaiFilterSourceType sourceType` - Filter source type (filter, effect) - automatically determined
+- `bool isFree` - Whether filter is free (cloud filters)
+- `bool isDownloaded` - Whether filter is downloaded (cloud filters)
+- `String? previewUrl` - Preview image URL or base64 data
 - `String? category` - Category string
-- `NosmaiFilterCategory filterCategory` - Filter category
+- `int downloadCount` - Download count (cloud filters)
+- `int price` - Filter price (cloud filters)
+
+**Enhanced Helper Properties:**
+- `bool get isCloudFilter` - Check if this is a cloud filter
+- `bool get isLocalFilter` - Check if this is a local filter  
+- `bool get isFilter` - Check if this is a filter (vs effect) - uses automatic category mapping
+- `bool get isEffect` - Check if this is an effect (vs filter) - uses automatic category mapping
+
+**Automatic Type Detection:**
+The system now automatically determines filter types based on category mappings:
+- **Effect categories**: `special-effects`, `art-effects`, `glitch-effects` → sourceType: `effect`
+- **Filter categories**: `fx-and-filters`, `color-filters`, `vintage-filters` → sourceType: `filter`
+- **Beauty category**: Always treated as `filter` type
+- Cloud filters use `filterCategory` field for classification
+- Local filters use manifest parsing for accurate type detection
 
 #### NosmaiEffectParameter
 - `String name` - Parameter name
@@ -664,18 +691,34 @@ If you're integrating this plugin into an existing project that already uses the
 
 ### Performance Tips
 
-- **Initialize**: Use `NosmaiFlutter.initialize()` for setup
-- **Use built-in caching**: Call `getFilters()` instead of fetching filters repeatedly
-- **Camera switching**: Use `switchCamera()` for safe switching
-- **Check switching state**: Use `NosmaiFlutter.isCameraSwitching` to disable UI during switches
-- Use `NosmaiFlutter.instance` singleton for all SDK operations
-- Use `NosmaiCameraPreview` widget for automatic lifecycle management
-- Stop processing when app goes to background to save battery with `stopProcessing()`
-- Remove filters when switching between different effect types using `removeAllFilters()`
-- Beauty filters automatically enable face detection - disable when not needed with `setFaceDetectionEnabled(false)`
-- Use horizontal scrollable filter panels for better UX as shown in the example
-- Call `cleanup()` instead of `dispose()` for SDK resource cleanup
-- Use `dispose()` only when completely done with the SDK instance
+**Consolidated API Best Practices:**
+- **Initialize once**: Use `NosmaiFlutter.initialize()` for setup (single consolidated method)
+- **Unified filter application**: Use `applyFilter()` for all filter types (consolidated from multiple methods)
+- **Smart caching**: Call `getFilters()` for automatic caching instead of separate local/cloud calls
+- **Safe camera switching**: Use `switchCamera()` with built-in throttling protection (consolidated method)
+- **Professional cache management**: Use `clearCache()` to clear both Flutter and native cache (enhanced method)
+
+**Enhanced Filter Management:**
+- **Automatic type detection**: Filters are automatically classified - no manual type checking needed
+- **Thread-safe operations**: All filter operations now include proper thread safety protection
+- **Unified filter model**: Use `NosmaiFilter` properties like `isEffect`, `isFilter` for smart filtering
+- **Preview data handling**: Enhanced support for filter preview images and metadata
+
+**System Optimization:**
+- **Check switching state**: Use `NosmaiFlutter.isCameraSwitching` to disable UI during camera transitions
+- **Use singleton pattern**: Access `NosmaiFlutter.instance` for all SDK operations
+- **Automatic lifecycle**: Use `NosmaiCameraPreview` widget for automatic lifecycle management
+- **Background optimization**: Call `stopProcessing()` when app goes to background to save battery
+- **Filter transitions**: Use `removeAllFilters()` when switching between different effect types
+- **Face detection**: Beauty filters automatically enable face detection when needed
+- **UI patterns**: Use horizontal scrollable filter panels for better UX as shown in the example
+- **Resource cleanup**: Call `cleanup()` for SDK resource cleanup, `dispose()` only when completely done
+
+**Professional Code Standards:**
+- **Enterprise-grade quality**: All code follows professional standards with no debug artifacts
+- **Proper error handling**: Enhanced error handling throughout the filter pipeline
+- **Method naming**: All methods follow industry naming conventions (e.g., `isBeautyFilterEnabled()`)
+- **Local framework**: Uses local Nosmai framework for improved performance and reliability
 
 ## License
 
@@ -692,22 +735,3 @@ For issues related to:
 - **Plugin functionality**: Create an issue in this repository
 - **Nosmai SDK**: Contact Nosmai support
 - **Flutter integration**: Check Flutter documentation
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## Version History
-
-### 1.0.0
-- Initial release
-- iOS platform support
-- Complete filter API implementation
-- Example app with comprehensive demos
-- Real Nosmai SDK integration
-- Stream-based event handling
-- Comprehensive documentation

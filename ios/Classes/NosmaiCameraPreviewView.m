@@ -192,15 +192,6 @@
             }
         }
         
-        NSLog(@"📱 NosmaiCameraPreviewView created with frame: %@ (viewId: %lld, deviceType: %@, safeAreaTop: %.1f, safeAreaBottom: %.1f)", 
-              NSStringFromCGRect(adjustedFrame), viewId, deviceType, safeAreaTop, safeAreaBottom);
-        NSLog(@"📱 Device screen bounds: %@ (%.0f x %.0f)", NSStringFromCGRect(screenBounds), screenSize.width, screenSize.height);
-        NSLog(@"📱 Device safe area insets: top=%.1f, bottom=%.1f, left=%.1f, right=%.1f", 
-              safeAreaInsets.top, safeAreaInsets.bottom, safeAreaInsets.left, safeAreaInsets.right);
-        NSLog(@"📱 Our view size: %.0f x %.0f vs Device screen: %.0f x %.0f - Match: %@", 
-              adjustedFrame.size.width, adjustedFrame.size.height, screenSize.width, screenSize.height,
-              (adjustedFrame.size.width == screenSize.width && adjustedFrame.size.height == screenSize.height) ? @"YES" : @"NO");
-        
         // Setup camera preview immediately since SDK is pre-warmed
         [self performCameraAttachment];
     }
@@ -213,7 +204,6 @@
         dispatch_semaphore_wait(self.setupSemaphore, DISPATCH_TIME_FOREVER);
         
         if (self.isSetupInProgress) {
-            NSLog(@"⚠️ Camera setup already in progress, skipping...");
             dispatch_semaphore_signal(self.setupSemaphore);
             return;
         }
@@ -233,7 +223,6 @@
     } else {
         self.setupRetryCount++;
         if (self.setupRetryCount > 10) {
-            NSLog(@"❌ Failed to setup camera after 10 retries - SDK not ready");
             dispatch_semaphore_wait(self.setupSemaphore, DISPATCH_TIME_FOREVER);
             self.isSetupInProgress = NO;
             self.setupRetryCount = 0;
@@ -241,7 +230,6 @@
             return;
         }
         
-        NSLog(@"⏳ SDK not ready (attempt %ld), waiting...", (long)self.setupRetryCount);
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             [self waitForSDKReadyThenSetup];
         });
@@ -253,7 +241,6 @@
         NosmaiCore* core = [NosmaiCore shared];
         
         if (!core || !core.isInitialized) {
-            NSLog(@"❌ Core became unavailable during setup");
             dispatch_semaphore_wait(self.setupSemaphore, DISPATCH_TIME_FOREVER);
             self.isSetupInProgress = NO;
             dispatch_semaphore_signal(self.setupSemaphore);
@@ -262,20 +249,15 @@
         
         // Don't setup during recording to prevent black screen
         if (core.isRecording) {
-            NSLog(@"⚠️ Skipping camera setup during recording");
             dispatch_semaphore_wait(self.setupSemaphore, DISPATCH_TIME_FOREVER);
             self.isSetupInProgress = NO;
             dispatch_semaphore_signal(self.setupSemaphore);
             return;
         }
         
-        NSLog(@"🔧 Setting up camera attachment (attached: %@, graceful: %@)", 
-              self.isAttached ? @"YES" : @"NO",
-              self.wasDetachedGracefully ? @"YES" : @"NO");
         
         // Detach from previous view if needed
         if (self.isAttached && !self.wasDetachedGracefully) {
-            NSLog(@"🔄 Detaching from previous view before reattaching");
             [core.camera detachFromView];
             self.isAttached = NO;
         }
@@ -300,7 +282,6 @@
     self.wasDetachedGracefully = NO;
     
     // Always proceed with attachment - NosmaiSDK handles processing state internally
-    NSLog(@"🔧 Proceeding with camera attachment");
     [self completeAttachment];
 }
 
@@ -311,8 +292,6 @@
     [core.camera attachToView:self->_nativeView];
     [[NosmaiSDK sharedInstance] setPreviewView:self->_nativeView];
     self.isAttached = YES;
-    
-    NSLog(@"📺 Camera attached to preview view (frame: %@)", NSStringFromCGRect(self->_nativeView.frame));
     
     // Configure the native view for full-screen display
     self->_nativeView.layer.contentsGravity = kCAGravityResizeAspectFill;
@@ -327,7 +306,6 @@
         [self configureNosmaiViewFillMode];
     });
     
-    NSLog(@"📐 Native view configured with frame: %@", NSStringFromCGRect(self->_nativeView.frame));
     
     // Reset setup state
     dispatch_semaphore_wait(self.setupSemaphore, DISPATCH_TIME_FOREVER);
@@ -335,7 +313,6 @@
     self.setupRetryCount = 0;
     dispatch_semaphore_signal(self.setupSemaphore);
     
-    NSLog(@"✅ Camera setup completed successfully");
 }
 
 - (void)setupCameraPreviewSafely {
@@ -365,7 +342,6 @@
         self->_nativeView.layer.contentsGravity = kCAGravityResizeAspectFill;
         self->_nativeView.layer.masksToBounds = YES;
         
-        NSLog(@"📐 Updated camera view bounds to: %@", NSStringFromCGRect(bounds));
         
         // Force resize of all NosmaiView subviews
         [self forceNosmaiViewResize];
@@ -398,7 +374,6 @@
             
             [subview setNeedsLayout];
             [subview layoutIfNeeded];
-            NSLog(@"📐 Force resized NosmaiView to: %@ (sublayers: %lu)", NSStringFromCGRect(subview.frame), (unsigned long)subview.layer.sublayers.count);
         }
     }
 }
@@ -417,7 +392,6 @@
 }
 
 - (void)detachCameraGracefully {
-    NSLog(@"🔄 Gracefully detaching camera from view");
     
     // Use semaphore to ensure thread-safe detachment
     dispatch_semaphore_wait(self.setupSemaphore, DISPATCH_TIME_FOREVER);
@@ -427,14 +401,12 @@
         [core.camera detachFromView];
         self.isAttached = NO;
         self.wasDetachedGracefully = YES;
-        NSLog(@"📺 Camera gracefully detached from view");
     }
     
     dispatch_semaphore_signal(self.setupSemaphore);
 }
 
 - (void)dealloc {
-    NSLog(@"🗑️ NosmaiCameraPreviewView deallocating (attached: %@)", self.isAttached ? @"YES" : @"NO");
     
     // Clean detachment when view is deallocated
     if (self.isAttached) {
@@ -474,7 +446,6 @@
     NSNumber* viewIdKey = @(viewId);
     NosmaiCameraPreviewView* existingView = _activeViews[viewIdKey];
     if (existingView) {
-        NSLog(@"🔄 Cleaning up existing view with ID: %lld", viewId);
         [existingView detachCameraGracefully];
         [_activeViews removeObjectForKey:viewIdKey];
     }
@@ -487,8 +458,6 @@
     
     // Track the new view
     _activeViews[viewIdKey] = newView;
-    
-    NSLog(@"📱 Created new camera preview view with ID: %lld (total active: %lu)", viewId, (unsigned long)_activeViews.count);
     
     return newView;
 }

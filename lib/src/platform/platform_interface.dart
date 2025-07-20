@@ -45,21 +45,12 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
     throw UnimplementedError('stopProcessing() has not been implemented.');
   }
 
-  /// Load a Nosmai filter file
-  Future<bool> loadNosmaiFilter(String filePath) {
-    throw UnimplementedError('loadNosmaiFilter() has not been implemented.');
-  }
 
   /// Switch camera between front and back
   Future<bool> switchCamera() {
     throw UnimplementedError('switchCamera() has not been implemented.');
   }
 
-  /// Enable or disable face detection
-  Future<void> setFaceDetectionEnabled(bool enable) {
-    throw UnimplementedError(
-        'setFaceDetectionEnabled() has not been implemented.');
-  }
 
   /// Remove all applied filters
   Future<void> removeAllFilters() {
@@ -145,9 +136,9 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
     throw UnimplementedError('saveVideoToGallery() has not been implemented.');
   }
 
-  /// Clear filter cache
-  Future<void> clearCache() {
-    throw UnimplementedError('clearCache() has not been implemented.');
+  /// Clear native filter cache
+  Future<void> clearFilterCache() {
+    throw UnimplementedError('clearFilterCache() has not been implemented.');
   }
 
   /// Detach camera from current view (for navigation cleanup)
@@ -234,13 +225,7 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
         'removeBuiltInFilterByName() has not been implemented.');
   }
 
-  Future<List<dynamic>> getInitialFilters() {
-    throw UnimplementedError('getInitialFilters() has not been implemented.');
-  }
 
-  Future<void> fetchCloudFilters() {
-    throw UnimplementedError('fetchCloudFilters() has not been implemented.');
-  }
 
   // License feature availability methods
   Future<bool> isBeautyEffectEnabled() {

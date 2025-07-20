@@ -20,7 +20,7 @@ int? _parseIntSafely(dynamic value) {
   return null;
 }
 
-/// Unified filter information for both local and cloud filters
+/// Filter information for both local and cloud filters
 class NosmaiFilter {
   final String id;
   final String name;
@@ -31,7 +31,7 @@ class NosmaiFilter {
   final String type; // "cloud" or "local" - indicates source location
   final NosmaiFilterCategory filterCategory; // beauty, effect, filter, unknown
   final NosmaiFilterSourceType sourceType; // filter, effect
-  
+
   // Cloud-specific properties (optional for local filters)
   final bool isFree;
   final bool isDownloaded;
@@ -60,13 +60,13 @@ class NosmaiFilter {
 
   /// Check if this is a cloud filter
   bool get isCloudFilter => type == 'cloud';
-  
-  /// Check if this is a local filter  
+
+  /// Check if this is a local filter
   bool get isLocalFilter => type == 'local';
-  
+
   /// Check if this is a filter (vs effect)
   bool get isFilter => sourceType == NosmaiFilterSourceType.filter;
-  
+
   /// Check if this is an effect (vs filter)
   bool get isEffect => sourceType == NosmaiFilterSourceType.effect;
 
@@ -128,7 +128,8 @@ class NosmaiFilter {
       sourceType: parsedSourceType,
       isFree: map['isFree'] as bool? ?? true,
       isDownloaded: map['isDownloaded'] as bool? ?? false,
-      previewUrl: map['previewUrl']?.toString() ?? map['thumbnailUrl']?.toString(),
+      previewUrl:
+          map['previewImageBase64']?.toString() ?? map['previewUrl']?.toString() ?? map['thumbnailUrl']?.toString(),
       category: map['category']?.toString(),
       downloadCount: _parseIntSafely(map['downloadCount']) ?? 0,
       price: _parseIntSafely(map['price']) ?? 0,
@@ -296,7 +297,6 @@ class NosmaiPhotoResult {
       final imagePath = map['imagePath']?.toString();
       final error = map['error']?.toString();
 
-      // Handle both int and double types from iOS
       int? width;
       int? height;
 
@@ -368,34 +368,3 @@ class NosmaiPhotoResult {
   }
 }
 
-/// SDK state information
-class NosmaiSdkStateInfo {
-  final NosmaiSdkState state;
-  final String? message;
-  final Map<String, dynamic>? additionalInfo;
-
-  const NosmaiSdkStateInfo({
-    required this.state,
-    this.message,
-    this.additionalInfo,
-  });
-
-  factory NosmaiSdkStateInfo.fromMap(Map<String, dynamic> map) {
-    return NosmaiSdkStateInfo(
-      state: NosmaiSdkState.values.firstWhere(
-        (e) => e.toString().split('.').last == map['state']?.toString(),
-        orElse: () => NosmaiSdkState.uninitialized,
-      ),
-      message: map['message']?.toString(),
-      additionalInfo: map['additionalInfo'] as Map<String, dynamic>?,
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'state': state.toString().split('.').last,
-      'message': message,
-      'additionalInfo': additionalInfo,
-    };
-  }
-}

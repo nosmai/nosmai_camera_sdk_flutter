@@ -41,7 +41,7 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
     _nosmaiFlutter = NosmaiFlutter.instance;
     _isScreenActive = true;
 
-    debugPrint('📱 Camera screen initialized');
+    
   }
 
   @override
@@ -52,12 +52,12 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
 
   /// Called when the camera is successfully initialized
   void onCameraInitialized() {
-    debugPrint('✅ Camera initialized callback');
+    
   }
 
   /// Called when the camera encounters an error
   void onCameraError(String error) {
-    debugPrint('❌ Camera error callback: $error');
+    
   }
 
   /// Call this method before navigating away from the camera screen
@@ -66,7 +66,7 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
 
     _isScreenActive = false;
 
-    debugPrint('🔄 Cleanup before navigation');
+    
 
     try {
       // Detach camera view gracefully
@@ -79,9 +79,9 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
         }
       }
 
-      debugPrint('✅ Navigation cleanup completed');
+      
     } catch (e) {
-      debugPrint('⚠️ Error during navigation cleanup: $e');
+      
     }
   }
 
@@ -91,7 +91,7 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
 
     _isScreenActive = false;
 
-    debugPrint('🗑️ Cleaning up camera screen resources');
+    
 
     try {
       // Detach camera view gracefully
@@ -104,9 +104,9 @@ mixin NosmaiCameraLifecycleMixin<T extends StatefulWidget> on State<T> {
         }
       }
 
-      debugPrint('✅ Camera screen cleanup completed');
+      
     } catch (e) {
-      debugPrint('⚠️ Error during camera screen cleanup: $e');
+      
     }
   }
 

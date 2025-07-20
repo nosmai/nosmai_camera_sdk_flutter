@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:nosmai_camera_sdk/nosmai_flutter.dart';
+import 'TestingScreen.dart';
 import 'unified_camera_screen.dart';
 
 /// Main entry point for the Nosmai Camera SDK example application
@@ -11,7 +12,7 @@ void main() async {
 
   try {
     await NosmaiFlutter.initialize(
-        'YOUR-NOSMAI-API-KEY-HERE'); // Replace with your actual API key
+        'NOSMAI-28b2eef6067aa521a0bddbcf058e14b08c0ab71bc6b366f4');
   } catch (e) {
     print('Failed to initialize Nosmai SDK: $e');
   }
@@ -19,7 +20,6 @@ void main() async {
   runApp(const NosmaiCameraApp());
 }
 
-/// Main application widget that sets up the MaterialApp with theme
 class NosmaiCameraApp extends StatelessWidget {
   const NosmaiCameraApp({super.key});
 
@@ -29,6 +29,7 @@ class NosmaiCameraApp extends StatelessWidget {
       title: 'Nosmai Camera',
       theme: _buildAppTheme(),
       home: const HomePage(),
+      // home: const TestingScreen(),
     );
   }
 

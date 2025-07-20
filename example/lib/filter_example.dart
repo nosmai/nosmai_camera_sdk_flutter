@@ -56,7 +56,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
     setState(() => _isLoading = true);
 
     try {
-      final filters = await _nosmai.fetchFiltersAndEffectsFromAllSources();
+      final filters = await _nosmai.getFilters();
       final organized = _organizeFiltersByCategory(filters);
 
       setState(() {
@@ -105,7 +105,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
   /// if needed, and properly manages beauty vs. effect filter application.
   Future<void> _applyFilter(NosmaiFilter filter) async {
     try {
-      final isBeautyFilter = await _nosmai.isBeautyFilter();
+      final isBeautyFilter = await _nosmai.isBeautyFilterEnabled();
 
       debugPrint('🎨 Applying filter: ${filter.displayName}');
       debugPrint('   Is beauty filter: $isBeautyFilter');
@@ -118,7 +118,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
       final filterPath = await _getFilterPath(filter);
 
       if (filterPath != null) {
-        await _nosmai.applyEffect(filterPath);
+        await _nosmai.applyFilter(filterPath);
         setState(() {
           _currentFilterName = filter.displayName;
         });

@@ -75,10 +75,9 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     // Camera is pre-warmed, set as initialized immediately
     _isInitialized = true;
     _isInitializing = false;
-    
+
     // Call onInitialized callback immediately
     widget.onInitialized?.call();
-    debugPrint('✅ Camera preview initialized successfully (pre-warmed) - key: $_viewKey');
   }
 
   @override
@@ -88,10 +87,10 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
 
     // Cleanup
     WidgetsBinding.instance.removeObserver(this);
-    
+
     // Cleanup camera view
     _cleanupOnDispose();
-    
+
     super.dispose();
   }
 
@@ -117,15 +116,14 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     }
   }
 
-
   Future<void> _pauseCamera() async {
     try {
       if (_isInitialized && _nosmaiFlutter.isProcessing) {
         await _nosmaiFlutter.stopProcessing();
-        debugPrint('⏸️ Camera processing paused');
+        
       }
     } catch (e) {
-      debugPrint('⚠️ Error pausing camera: $e');
+      
     }
   }
 
@@ -133,10 +131,10 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     try {
       if (_isInitialized && !_nosmaiFlutter.isProcessing) {
         await _nosmaiFlutter.startProcessing();
-        debugPrint('▶️ Camera processing resumed');
+        
       }
     } catch (e) {
-      debugPrint('⚠️ Error resuming camera: $e');
+      
       // If resume fails, camera is still pre-warmed, just reset state
       if (mounted) {
         setState(() {
@@ -149,17 +147,17 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
 
   Future<void> _cleanupCamera() async {
     try {
-      debugPrint('🧹 Starting camera cleanup...');
+      
 
       // Stop processing if active
       if (_nosmaiFlutter.isProcessing) {
         await _nosmaiFlutter.stopProcessing();
-        debugPrint('⏹️ Camera processing stopped');
+        
       }
 
       // Detach camera view
       await _nosmaiFlutter.detachCameraView();
-      debugPrint('🔌 Camera view detached');
+      
 
       // Brief delay for cleanup
       await Future.delayed(const Duration(milliseconds: 200));
@@ -172,9 +170,9 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
         });
       }
 
-      debugPrint('✅ Camera cleanup completed');
+      
     } catch (e) {
-      debugPrint('⚠️ Error during camera cleanup: $e');
+      
       if (mounted) {
         setState(() {
           _isInitialized = false;
@@ -187,22 +185,22 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
   /// Cleanup camera view on dispose
   void _cleanupOnDispose() {
     try {
-      debugPrint('🧹 Cleanup on dispose for view: $_viewKey');
       
+
       // Fire and forget - don't wait for async operations
       _nosmaiFlutter.detachCameraView().catchError((e) {
-        debugPrint('⚠️ Detach warning for $_viewKey: $e');
+        
       });
+
       
-      debugPrint('✅ Cleanup completed for $_viewKey');
     } catch (e) {
-      debugPrint('⚠️ Error during cleanup for $_viewKey: $e');
+      
     }
   }
 
   /// Manually reinitialize the camera (useful for error recovery)
   Future<void> reinitialize() async {
-    debugPrint('🔄 Manual camera reinitialize requested');
+    
 
     // Force cleanup
     await _cleanupCamera();
@@ -221,7 +219,7 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
 
     // Call onInitialized callback
     widget.onInitialized?.call();
-    debugPrint('✅ Camera preview reinitialized successfully (pre-warmed)');
+    
   }
 
   @override
@@ -287,23 +285,15 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
       );
     }
 
-
     // Show camera preview - force full screen dimensions including notch and bottom
     final mediaQuery = MediaQuery.of(context);
     final screenSize = mediaQuery.size;
     final padding = mediaQuery.padding;
-    
+
     // Use device screen bounds directly for full-screen coverage
     final screenWidth = screenSize.width;
     final screenHeight = screenSize.height;
-    
-    // Log screen dimensions for debugging
-    debugPrint('📱 Flutter screen calculations:');
-    debugPrint('   MediaQuery size: ${screenSize.width} x ${screenSize.height}');
-    debugPrint('   Padding: top=${padding.top}, bottom=${padding.bottom}, left=${padding.left}, right=${padding.right}');
-    debugPrint('   Final dimensions: $screenWidth x $screenHeight (using device bounds)');
-    debugPrint('   Device pixel ratio: ${mediaQuery.devicePixelRatio}');
-    
+
     return MediaQuery.removePadding(
       context: context,
       removeTop: true,
@@ -345,11 +335,12 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     final screenWidth = screenSize.width;
     final screenHeight = screenSize.height;
     final padding = mediaQuery.padding;
-    
+
     // Include safe area information
-    final hasNotch = padding.top > 24; // Devices with notch typically have padding > 24
+    final hasNotch =
+        padding.top > 24; // Devices with notch typically have padding > 24
     final hasBottomSafeArea = padding.bottom > 0;
-    
+
     // Determine device type based on screen dimensions
     String deviceType;
     if (screenWidth >= 1024 || screenHeight >= 1024) {
@@ -359,7 +350,7 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     } else {
       deviceType = 'phone';
     }
-    
+
     // Add safe area info for iOS layout
     if (hasNotch) {
       deviceType += '_notch';
@@ -367,7 +358,7 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     if (hasBottomSafeArea) {
       deviceType += '_bottom';
     }
-    
+
     return deviceType;
   }
 }

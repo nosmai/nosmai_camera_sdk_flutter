@@ -28,8 +28,6 @@ class NosmaiFlutter {
   /// Stream controller for download progress events (lazy initialization)
   StreamController<NosmaiDownloadProgress>? _downloadProgressController;
 
-  /// Stream controller for SDK state changes (lazy initialization)
-  StreamController<NosmaiSdkStateInfo>? _stateController;
 
   /// Stream controller for recording progress events (lazy initialization)
   StreamController<double>? _recordingProgressController;
@@ -72,11 +70,6 @@ class NosmaiFlutter {
     return _downloadProgressController!.stream;
   }
 
-  /// Stream of SDK state changes
-  Stream<NosmaiSdkStateInfo> get onStateChanged {
-    _stateController ??= StreamController<NosmaiSdkStateInfo>.broadcast();
-    return _stateController!.stream;
-  }
 
   /// Stream of recording progress events (duration in seconds)
   Stream<double> get onRecordingProgress {
@@ -93,38 +86,6 @@ class NosmaiFlutter {
   /// Whether recording is active
   bool get isRecording => _isRecording;
 
-  /// Initialize the SDK with a license key
-  Future<bool> initWithLicense(String licenseKey) async {
-    if (_isDisposed) {
-      _isDisposed = false;
-      _isInitialized = false;
-      _isProcessing = false;
-      _isRecording = false;
-      _activeOperations.clear();
-    }
-
-    if (_isInitialized) {
-      await cleanup();
-    }
-
-    try {
-      final success = await _trackOperation(
-          NosmaiFlutterPlatform.instance.initWithLicense(licenseKey));
-
-      _isInitialized = success;
-      // SDK initialization completed
-
-      return success;
-    } catch (e) {
-      _errorController?.add(NosmaiError.general(
-        type: NosmaiErrorType.platformError,
-        message: 'Failed to initialize SDK',
-        details: e.toString(),
-        originalError: e,
-      ));
-      return false;
-    }
-  }
 
   /// Initialize the SDK
   /// 
@@ -134,14 +95,39 @@ class NosmaiFlutter {
   static Future<bool> initialize(String licenseKey) async {
     final instance = NosmaiFlutter.instance;
     
-    // Initialize the SDK
-    final success = await instance.initWithLicense(licenseKey);
-    
-    if (success) {
-      _preloadEssentialFilters();
+    // Reset instance state if needed
+    if (instance._isDisposed) {
+      instance._isDisposed = false;
+      instance._isInitialized = false;
+      instance._isProcessing = false;
+      instance._isRecording = false;
+      instance._activeOperations.clear();
     }
-    
-    return success;
+
+    if (instance._isInitialized) {
+      await instance.cleanup();
+    }
+
+    try {
+      final success = await instance._trackOperation(
+          NosmaiFlutterPlatform.instance.initWithLicense(licenseKey));
+
+      instance._isInitialized = success;
+      
+      if (success) {
+        _preloadEssentialFilters();
+      }
+
+      return success;
+    } catch (e) {
+      instance._errorController?.add(NosmaiError.general(
+        type: NosmaiErrorType.platformError,
+        message: 'Failed to initialize SDK',
+        details: e.toString(),
+        originalError: e,
+      ));
+      return false;
+    }
   }
 
   static void _preloadEssentialFilters() {
@@ -218,10 +204,10 @@ class NosmaiFlutter {
     }
   }
 
-  /// Apply a .nosmai effect file
-  Future<bool> applyEffect(String effectPath) async {
+  /// Apply a .nosmai filter file
+  Future<bool> applyFilter(String filterPath) async {
     _checkInitialized();
-    return await NosmaiFlutterPlatform.instance.applyEffect(effectPath);
+    return await NosmaiFlutterPlatform.instance.applyEffect(filterPath);
   }
 
   /// Get list of available cloud filters
@@ -234,6 +220,12 @@ class NosmaiFlutter {
           .map((filter) =>
               NosmaiFilter.fromMap(Map<String, dynamic>.from(filter)))
           .toList();
+    } on PlatformException catch (e) {
+      throw NosmaiError.filter(
+        type: _parseErrorType(e.code),
+        message: e.message ?? 'Failed to get cloud filters',
+        details: e.details?.toString(),
+      );
     } catch (e) {
       _errorController?.add(NosmaiError.general(
         type: NosmaiErrorType.networkError,
@@ -249,31 +241,44 @@ class NosmaiFlutter {
   /// Download a cloud filter
   Future<Map<String, dynamic>> downloadCloudFilter(String filterId) async {
     _checkInitialized();
-    return await NosmaiFlutterPlatform.instance.downloadCloudFilter(filterId);
+    try {
+      final result = await NosmaiFlutterPlatform.instance.downloadCloudFilter(filterId);
+      
+      // Clear cache after successful download to ensure updated download status
+      if (result['success'] == true) {
+        _cachedFilters = null;
+        _lastCacheTime = null;
+      }
+      
+      return result;
+    } on PlatformException catch (e) {
+      throw NosmaiError.filter(
+        type: _parseErrorType(e.code),
+        message: e.message ?? 'Failed to download cloud filter',
+        details: e.details?.toString(),
+      );
+    }
   }
 
   /// Get list of local .nosmai filters
   Future<List<NosmaiFilter>> getLocalFilters() async {
     _checkInitialized();
-    final List<dynamic> filters =
-        await NosmaiFlutterPlatform.instance.getLocalFilters();
-    return filters
-        .map((filter) =>
-            NosmaiFilter.fromMap(Map<String, dynamic>.from(filter)))
-        .toList();
+    try {
+      final List<dynamic> filters =
+          await NosmaiFlutterPlatform.instance.getLocalFilters();
+      return filters
+          .map((filter) =>
+              NosmaiFilter.fromMap(Map<String, dynamic>.from(filter)))
+          .toList();
+    } on PlatformException catch (e) {
+      throw NosmaiError.filter(
+        type: _parseErrorType(e.code),
+        message: e.message ?? 'Failed to get local filters',
+        details: e.details?.toString(),
+      );
+    }
   }
 
-  /// Fetch filters and effects from all sources
-  Future<List<NosmaiFilter>> fetchFiltersAndEffectsFromAllSources() async {
-    _checkInitialized();
-    final List<dynamic> filters =
-        await NosmaiFlutterPlatform.instance.getFilters();
-
-    return filters.map((filter) {
-      final filterMap = Map<String, dynamic>.from(filter);
-      return NosmaiFilter.fromMap(filterMap);
-    }).toList();
-  }
 
   /// Get filters
   /// 
@@ -292,7 +297,12 @@ class NosmaiFlutter {
     }
     
     // Fetch fresh filters
-    final filters = await fetchFiltersAndEffectsFromAllSources();
+    final List<dynamic> filtersData =
+        await NosmaiFlutterPlatform.instance.getFilters();
+    final filters = filtersData.map((filter) {
+      final filterMap = Map<String, dynamic>.from(filter);
+      return NosmaiFilter.fromMap(filterMap);
+    }).toList();
     
     // Update cache
     _updateFilterCache(filters);
@@ -300,20 +310,20 @@ class NosmaiFlutter {
     return filters;
   }
 
-  /// Clear filter cache
+  /// Clear filter cache (both Flutter memory and native cache)
   Future<void> clearCache() async {
+    // Clear Flutter memory cache
     _cachedFilters = null;
     _lastCacheTime = null;
+    
+    // Clear native iOS cache
+    try {
+      await NosmaiFlutterPlatform.instance.clearFilterCache();
+    } catch (e) {
+      // Native cache clear failed, but Flutter cache is cleared
+    }
   }
 
-  /// Configure filter cache settings
-  /// 
-  /// This method allows customization of the filter cache behavior.
-  /// Note: This is a placeholder for future cache configuration options.
-  Future<void> setCacheConfig(Map<String, dynamic> config) async {
-    // Future implementation for cache configuration
-    // Could include: max cache size, custom TTL per filter type, etc.
-  }
 
   /// Check if the filter cache is still valid
   static bool _isCacheValid(Duration validityDuration) {
@@ -326,39 +336,6 @@ class NosmaiFlutter {
   static void _updateFilterCache(List<NosmaiFilter> filters) {
     _cachedFilters = filters;
     _lastCacheTime = DateTime.now();
-  }
-
-  /// Switch camera immediately (advanced)
-  /// 
-  /// Direct camera switch without throttling protection.
-  /// Use switchCamera() instead for most cases.
-  Future<void> switchCameraImmediate() async {
-    _checkInitialized();
-    
-    try {
-      final success = await NosmaiFlutterPlatform.instance.switchCamera();
-      if (!success) {
-        throw NosmaiError.camera(
-          type: NosmaiErrorType.cameraSwitchFailed,
-          message: 'Camera switch operation failed',
-          details: 'The camera switch operation was unsuccessful',
-        );
-      }
-    } on PlatformException catch (e) {
-      throw NosmaiError.camera(
-        type: _parseErrorType(e.code),
-        message: e.message ?? 'Camera switch failed',
-        details: e.details?.toString(),
-      );
-    } catch (e, stackTrace) {
-      if (e is NosmaiError) rethrow;
-      throw NosmaiError.general(
-        type: NosmaiErrorType.cameraSwitchFailed,
-        message: 'Failed to switch camera: ${e.toString()}',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-    }
   }
 
   /// Switch camera position
@@ -388,12 +365,30 @@ class NosmaiFlutter {
     _lastSwitchTime = now;
     
     try {
-      // Perform the camera switch
-      await switchCameraImmediate();
+      // Perform the camera switch directly
+      final success = await NosmaiFlutterPlatform.instance.switchCamera();
+      if (!success) {
+        throw NosmaiError.camera(
+          type: NosmaiErrorType.cameraSwitchFailed,
+          message: 'Camera switch operation failed',
+          details: 'The camera switch operation was unsuccessful',
+        );
+      }
       return true;
-    } catch (e) {
-      // Re-throw the actual camera switch error
-      rethrow;
+    } on PlatformException catch (e) {
+      throw NosmaiError.camera(
+        type: _parseErrorType(e.code),
+        message: e.message ?? 'Camera switch failed',
+        details: e.details?.toString(),
+      );
+    } catch (e, stackTrace) {
+      if (e is NosmaiError) rethrow;
+      throw NosmaiError.general(
+        type: NosmaiErrorType.cameraSwitchFailed,
+        message: 'Failed to switch camera: ${e.toString()}',
+        originalError: e,
+        stackTrace: stackTrace,
+      );
     } finally {
       // Always reset switching state
       _isCameraSwitching = false;
@@ -622,14 +617,8 @@ class NosmaiFlutter {
     await NosmaiFlutterPlatform.instance.removeBuiltInFilters();
   }
 
-  /// Check if beauty effects are enabled
-  Future<bool> isBeautyEffectEnabled() async {
-    _checkInitialized();
-    return await NosmaiFlutterPlatform.instance.isBeautyEffectEnabled();
-  }
-
-  /// Check if this is a beauty filter (placeholder - needs implementation)
-  Future<bool> isBeautyFilter() async {
+  /// Check if beauty filters are enabled
+  Future<bool> isBeautyFilterEnabled() async {
     _checkInitialized();
     return await NosmaiFlutterPlatform.instance.isBeautyEffectEnabled();
   }
@@ -650,12 +639,10 @@ class NosmaiFlutter {
 
     _errorController?.close();
     _downloadProgressController?.close();
-    _stateController?.close();
     _recordingProgressController?.close();
 
     _errorController = null;
     _downloadProgressController = null;
-    _stateController = null;
     _recordingProgressController = null;
   }
 
@@ -701,14 +688,14 @@ class NosmaiFlutter {
       throw NosmaiError.general(
         type: NosmaiErrorType.stateError,
         message: 'NosmaiFlutter instance has been disposed',
-        details: 'Call initWithLicense() again to reinitialize the SDK',
+        details: 'Call NosmaiFlutter.initialize() again to reinitialize the SDK',
       );
     }
     if (!_isInitialized) {
       throw NosmaiError.general(
         type: NosmaiErrorType.sdkNotInitialized,
         message: 'NosmaiFlutter must be initialized before use',
-        details: 'Call initWithLicense() first to initialize the SDK',
+        details: 'Call NosmaiFlutter.initialize() first to initialize the SDK',
       );
     }
   }
@@ -750,6 +737,10 @@ class NosmaiFlutter {
       case 'FILTER_LOAD_ERROR':
         return NosmaiErrorType.filterLoadFailed;
       case 'FILTER_DOWNLOAD_ERROR':
+      case 'DOWNLOAD_ERROR':
+      case 'DOWNLOAD_PATH_ERROR':
+      case 'DOWNLOAD_PATH_MISSING':
+      case 'DOWNLOAD_UNKNOWN_ERROR':
         return NosmaiErrorType.filterDownloadFailed;
       case 'RECORDING_PERMISSION_DENIED':
         return NosmaiErrorType.recordingPermissionDenied;
@@ -766,7 +757,19 @@ class NosmaiFlutter {
       case 'PLATFORM_ERROR':
         return NosmaiErrorType.platformError;
       case 'NETWORK_ERROR':
+      case 'NETWORK_UNAVAILABLE':
         return NosmaiErrorType.networkError;
+      case 'FILTER_DISCOVERY_FAILED':
+      case 'FILTER_PROCESSING_FAILED':
+      case 'CLOUD_FILTER_PROCESSING_FAILED':
+      case 'CLOUD_FILTERS_NOT_AVAILABLE':
+        return NosmaiErrorType.filterLoadFailed;
+      case 'INVALID_FILTER_ID':
+      case 'INVALID_EFFECT_PATH':
+        return NosmaiErrorType.invalidParameter;
+      case 'EFFECT_APPLY_FAILED':
+      case 'REMOVE_FILTERS_ERROR':
+        return NosmaiErrorType.filterLoadFailed;
       case 'INVALID_PARAMETER':
         return NosmaiErrorType.invalidParameter;
       default:
