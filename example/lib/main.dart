@@ -10,8 +10,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    await NosmaiFlutter.initialize(
-        'NOSMAI-28b2eef6067aa521a0bddbcf058e14b08c0ab71bc6b366f4');
+    await NosmaiFlutter.initialize('NOSMAI-KEY');
   } catch (e) {
     print('Failed to initialize Nosmai SDK: $e');
   }
