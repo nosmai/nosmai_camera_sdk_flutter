@@ -86,10 +86,3 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
-
-
-
-
-# rename getBundleId --targets ios
-# com.nosmai.nosmaiFlutterExample;
-# rename setBundleId --targets ios --value "com.nosmai.nosmaiFlutterExample"
