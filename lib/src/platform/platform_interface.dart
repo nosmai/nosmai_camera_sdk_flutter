@@ -233,4 +233,29 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
     throw UnimplementedError(
         'isCloudFilterEnabled() has not been implemented.');
   }
+
+  // Flash and Torch Methods
+  Future<bool> hasFlash() {
+    throw UnimplementedError('hasFlash() has not been implemented.');
+  }
+
+  Future<bool> hasTorch() {
+    throw UnimplementedError('hasTorch() has not been implemented.');
+  }
+
+  Future<bool> setFlashMode(NosmaiFlashMode flashMode) {
+    throw UnimplementedError('setFlashMode() has not been implemented.');
+  }
+
+  Future<bool> setTorchMode(NosmaiTorchMode torchMode) {
+    throw UnimplementedError('setTorchMode() has not been implemented.');
+  }
+
+  Future<NosmaiFlashMode> getFlashMode() {
+    throw UnimplementedError('getFlashMode() has not been implemented.');
+  }
+
+  Future<NosmaiTorchMode> getTorchMode() {
+    throw UnimplementedError('getTorchMode() has not been implemented.');
+  }
 }

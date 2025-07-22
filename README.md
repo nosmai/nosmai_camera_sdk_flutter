@@ -1,3 +1,5 @@
+![Nosmai Camera SDK Banner](banner.jpg)
+
 # Nosmai Camera SDK Flutter Plugin
 
 A Flutter plugin for integrating the Nosmai SDK - Real-time video filtering and beauty effects for iOS applications.

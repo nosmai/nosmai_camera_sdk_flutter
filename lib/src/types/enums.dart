@@ -70,3 +70,17 @@ enum NosmaiSdkState {
   ready,
   error,
 }
+
+/// Flash mode enumeration
+enum NosmaiFlashMode {
+  off,
+  on,
+  auto,
+}
+
+/// Torch mode enumeration
+enum NosmaiTorchMode {
+  off,
+  on,
+  auto,
+}

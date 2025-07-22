@@ -175,7 +175,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
         avatar: Icon(config.icon, color: config.color, size: 18),
         label: Text(filter.displayName),
         onPressed: () => _applyFilter(filter),
-        backgroundColor: config.color.withValues(alpha: 0.1),
+        backgroundColor: config.color.withOpacity( 0.1),
       ),
     );
   }
@@ -226,7 +226,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
-            color: config.color.withValues(alpha: 0.2),
+            color: config.color.withOpacity( 0.2),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
@@ -256,7 +256,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+            color: Theme.of(context).primaryColor.withOpacity( 0.1),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

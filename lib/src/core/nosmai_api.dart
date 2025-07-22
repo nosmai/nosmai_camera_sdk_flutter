@@ -589,6 +589,18 @@ class NosmaiFlutter {
     await NosmaiFlutterPlatform.instance.applySharpening(level);
   }
 
+  /// Apply makeup blend level filter
+  Future<void> applyMakeupBlendLevel(String filterName, double level) async {
+    _checkInitialized();
+    await NosmaiFlutterPlatform.instance.applyMakeupBlendLevel(filterName, level);
+  }
+
+  /// Apply grayscale filter
+  Future<void> applyGrayscaleFilter() async {
+    _checkInitialized();
+    await NosmaiFlutterPlatform.instance.applyGrayscaleFilter();
+  }
+
   /// Apply hue filter
   Future<void> applyHue(double hueAngle) async {
     _checkInitialized();
@@ -635,6 +647,37 @@ class NosmaiFlutter {
   Future<bool> isCloudFilterEnabled() async {
     _checkInitialized();
     return await NosmaiFlutterPlatform.instance.isCloudFilterEnabled();
+  }
+
+  // Flash and Torch Methods
+  Future<bool> hasFlash() async {
+    _checkInitialized();
+    return await NosmaiFlutterPlatform.instance.hasFlash();
+  }
+
+  Future<bool> hasTorch() async {
+    _checkInitialized();
+    return await NosmaiFlutterPlatform.instance.hasTorch();
+  }
+
+  Future<bool> setFlashMode(NosmaiFlashMode flashMode) async {
+    _checkInitialized();
+    return await NosmaiFlutterPlatform.instance.setFlashMode(flashMode);
+  }
+
+  Future<bool> setTorchMode(NosmaiTorchMode torchMode) async {
+    _checkInitialized();
+    return await NosmaiFlutterPlatform.instance.setTorchMode(torchMode);
+  }
+
+  Future<NosmaiFlashMode> getFlashMode() async {
+    _checkInitialized();
+    return await NosmaiFlutterPlatform.instance.getFlashMode();
+  }
+
+  Future<NosmaiTorchMode> getTorchMode() async {
+    _checkInitialized();
+    return await NosmaiFlutterPlatform.instance.getTorchMode();
   }
 
   /// Dispose of stream controllers and clean up all resources

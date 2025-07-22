@@ -639,4 +639,85 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
       return false;
     }
   }
+
+  // Flash and Torch Methods
+  @override
+  Future<bool> hasFlash() async {
+    try {
+      final result = await methodChannel.invokeMethod<bool>('hasFlash');
+      return result ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> hasTorch() async {
+    try {
+      final result = await methodChannel.invokeMethod<bool>('hasTorch');
+      return result ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> setFlashMode(NosmaiFlashMode flashMode) async {
+    try {
+      final result = await methodChannel.invokeMethod<bool>('setFlashMode', {
+        'flashMode': flashMode.name,
+      });
+      return result ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> setTorchMode(NosmaiTorchMode torchMode) async {
+    try {
+      final result = await methodChannel.invokeMethod<bool>('setTorchMode', {
+        'torchMode': torchMode.name,
+      });
+      return result ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  @override
+  Future<NosmaiFlashMode> getFlashMode() async {
+    try {
+      final result = await methodChannel.invokeMethod<String>('getFlashMode');
+      switch (result) {
+        case 'on':
+          return NosmaiFlashMode.on;
+        case 'auto':
+          return NosmaiFlashMode.auto;
+        case 'off':
+        default:
+          return NosmaiFlashMode.off;
+      }
+    } catch (e) {
+      return NosmaiFlashMode.off;
+    }
+  }
+
+  @override
+  Future<NosmaiTorchMode> getTorchMode() async {
+    try {
+      final result = await methodChannel.invokeMethod<String>('getTorchMode');
+      switch (result) {
+        case 'on':
+          return NosmaiTorchMode.on;
+        case 'auto':
+          return NosmaiTorchMode.auto;
+        case 'off':
+        default:
+          return NosmaiTorchMode.off;
+      }
+    } catch (e) {
+      return NosmaiTorchMode.off;
+    }
+  }
 }

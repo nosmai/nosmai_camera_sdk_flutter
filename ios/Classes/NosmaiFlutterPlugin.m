@@ -205,6 +205,25 @@
   else if ([@"stopLiveFrameStream" isEqualToString:method]) {
     [self handleStopLiveFrameStream:call result:result];
   }
+  // Flash and Torch
+  else if ([@"hasFlash" isEqualToString:method]) {
+    [self handleHasFlash:call result:result];
+  }
+  else if ([@"hasTorch" isEqualToString:method]) {
+    [self handleHasTorch:call result:result];
+  }
+  else if ([@"setFlashMode" isEqualToString:method]) {
+    [self handleSetFlashMode:call result:result];
+  }
+  else if ([@"setTorchMode" isEqualToString:method]) {
+    [self handleSetTorchMode:call result:result];
+  }
+  else if ([@"getFlashMode" isEqualToString:method]) {
+    [self handleGetFlashMode:call result:result];
+  }
+  else if ([@"getTorchMode" isEqualToString:method]) {
+    [self handleGetTorchMode:call result:result];
+  }
   else {
     result(FlutterMethodNotImplemented);
   }
@@ -2251,6 +2270,158 @@
   }
   
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+#pragma mark - Flash and Torch
+
+- (void)handleHasFlash:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK not initialized"
+                               details:nil]);
+    return;
+  }
+  
+  @try {
+    BOOL hasFlash = [[NosmaiCore shared].camera hasFlash];
+    result(@(hasFlash));
+  } @catch (NSException *exception) {
+    result([FlutterError errorWithCode:@"FLASH_ERROR"
+                               message:@"Failed to check flash availability"
+                               details:exception.reason]);
+  }
+}
+
+- (void)handleHasTorch:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK not initialized"
+                               details:nil]);
+    return;
+  }
+  
+  @try {
+    BOOL hasTorch = [[NosmaiCore shared].camera hasTorch];
+    result(@(hasTorch));
+  } @catch (NSException *exception) {
+    result([FlutterError errorWithCode:@"TORCH_ERROR"
+                               message:@"Failed to check torch availability"
+                               details:exception.reason]);
+  }
+}
+
+- (void)handleSetFlashMode:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK not initialized"
+                               details:nil]);
+    return;
+  }
+  
+  NSString *flashModeString = call.arguments[@"flashMode"];
+  if (!flashModeString) {
+    result([FlutterError errorWithCode:@"INVALID_PARAMETER"
+                               message:@"Flash mode parameter is required"
+                               details:nil]);
+    return;
+  }
+  
+  AVCaptureFlashMode flashMode;
+  if ([flashModeString isEqualToString:@"on"]) {
+    flashMode = AVCaptureFlashModeOn;
+  } else if ([flashModeString isEqualToString:@"auto"]) {
+    flashMode = AVCaptureFlashModeAuto;
+  } else {
+    flashMode = AVCaptureFlashModeOff;
+  }
+  
+  @try {
+    BOOL success = [[NosmaiCore shared].camera setFlashMode:flashMode];
+    result(@(success));
+  } @catch (NSException *exception) {
+    result([FlutterError errorWithCode:@"FLASH_ERROR"
+                               message:@"Failed to set flash mode"
+                               details:exception.reason]);
+  }
+}
+
+- (void)handleSetTorchMode:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK not initialized"
+                               details:nil]);
+    return;
+  }
+  
+  NSString *torchModeString = call.arguments[@"torchMode"];
+  if (!torchModeString) {
+    result([FlutterError errorWithCode:@"INVALID_PARAMETER"
+                               message:@"Torch mode parameter is required"
+                               details:nil]);
+    return;
+  }
+  
+  AVCaptureTorchMode torchMode;
+  if ([torchModeString isEqualToString:@"on"]) {
+    torchMode = AVCaptureTorchModeOn;
+  } else if ([torchModeString isEqualToString:@"auto"]) {
+    torchMode = AVCaptureTorchModeAuto;
+  } else {
+    torchMode = AVCaptureTorchModeOff;
+  }
+  
+  @try {
+    BOOL success = [[NosmaiCore shared].camera setTorchMode:torchMode];
+    result(@(success));
+  } @catch (NSException *exception) {
+    result([FlutterError errorWithCode:@"TORCH_ERROR"
+                               message:@"Failed to set torch mode"
+                               details:exception.reason]);
+  }
+}
+
+- (void)handleGetFlashMode:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK not initialized"
+                               details:nil]);
+    return;
+  }
+  
+  @try {
+    BOOL hasFlash = [[NosmaiCore shared].camera hasFlash];
+    if (hasFlash) {
+      result(@"off"); // Default state
+    } else {
+      result(@"off"); // No flash available
+    }
+  } @catch (NSException *exception) {
+    result([FlutterError errorWithCode:@"FLASH_ERROR"
+                               message:@"Failed to get flash mode"
+                               details:exception.reason]);
+  }
+}
+
+- (void)handleGetTorchMode:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK not initialized"
+                               details:nil]);
+    return;
+  }
+  
+  @try {
+    BOOL hasTorch = [[NosmaiCore shared].camera hasTorch];
+    if (hasTorch) {
+      result(@"off"); // Default state
+    } else {
+      result(@"off"); // No torch available
+    }
+  } @catch (NSException *exception) {
+    result([FlutterError errorWithCode:@"TORCH_ERROR"
+                               message:@"Failed to get torch mode"
+                               details:exception.reason]);
+  }
 }
 
 @end
