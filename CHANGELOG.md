@@ -1,3 +1,6 @@
+## 1.0.4+1
+- resolve .AAR build issue
+
 ## 1.0.4
 - Added Android .aar integration inside the plugin
 - Fixed build.gradle configurations for Android
