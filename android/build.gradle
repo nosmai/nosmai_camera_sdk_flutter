@@ -14,12 +14,12 @@ buildscript {
     }
 }
 
-allprojects {
+rootProject.allprojects {
     repositories {
         google()
         mavenCentral()
         flatDir {
-            dirs 'libs'
+            dirs project(':nosmai_camera_sdk').projectDir.toString() + '/libs'
         }
     }
 }
