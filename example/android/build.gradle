@@ -3,7 +3,7 @@ allprojects {
         google()
         mavenCentral()
         flatDir {
-            dirs "${project(':nosmai_camera_sdk').projectDir}/src/main/libs"
+            dirs "${project(':nosmai_camera_sdk').projectDir}/libs"
         }
     }
 }
