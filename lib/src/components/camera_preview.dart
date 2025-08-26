@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import '../../nosmai_camera_sdk.dart';
 import '../platform/platform_interface.dart';
 
-/// A widget that displays the Nosmai camera preview with proper lifecycle management
 class NosmaiCameraPreview extends StatefulWidget {
   const NosmaiCameraPreview({
     super.key,
@@ -25,7 +24,6 @@ class NosmaiCameraPreview extends StatefulWidget {
   State<NosmaiCameraPreview> createState() => _NosmaiCameraPreviewState();
 }
 
-/// Camera preview controller for programmatic control
 class NosmaiCameraPreviewController {
   _NosmaiCameraPreviewState? _state;
 
@@ -194,7 +192,9 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
         final id = _androidTextureId;
         if (id != null) {
           // Clear Android render surface and reset texture ID
-          NosmaiFlutterPlatform.instance.clearRenderSurface(id).catchError((_) {});
+          NosmaiFlutterPlatform.instance
+              .clearRenderSurface(id)
+              .catchError((_) {});
           _androidTextureId = null;
         }
         // Stop processing to release camera
@@ -388,7 +388,6 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
   }
 
   Future<void> _initializeAndroidTexturePreview() async {
-    print('NosmaiCameraPreview: Starting Android texture initialization');
     setState(() {
       _isInitializing = true;
       _initError = null;
@@ -396,24 +395,23 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
 
     try {
       // Create a texture on the native side
-      final mediaQuery = WidgetsBinding.instance.platformDispatcher.views.first.physicalSize;
       final width = MediaQuery.of(context).size.width;
       final height = MediaQuery.of(context).size.height;
-      
-      print('NosmaiCameraPreview: Creating texture with size: ${width}x${height}');
 
       final textureId = await NosmaiFlutterPlatform.instance
           .createPreviewTexture(width: width, height: height);
 
       if (textureId == null) {
-        throw PlatformException(code: 'TEXTURE_ERROR', message: 'Failed to create preview texture');
+        throw PlatformException(
+            code: 'TEXTURE_ERROR', message: 'Failed to create preview texture');
       }
 
       final ok = await NosmaiFlutterPlatform.instance
           .setRenderSurface(textureId, width: width, height: height);
 
       if (!ok) {
-        throw PlatformException(code: 'SURFACE_ERROR', message: 'Failed to bind render surface');
+        throw PlatformException(
+            code: 'SURFACE_ERROR', message: 'Failed to bind render surface');
       }
 
       if (mounted) {
