@@ -18,8 +18,9 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        // This will be provided by the app's build.gradle
-        // App must add: flatDir { dirs "${rootProject.projectDir}/app/libs" }
+        flatDir {
+            dirs 'libs'
+        }
     }
 }
 
@@ -52,9 +53,8 @@ android {
     }
 
     dependencies {
-        // Nosmai Android SDK - provided by the app at runtime
-        // App must include nosmai-release.aar in android/app/libs
-        compileOnly(name: 'nosmai-release', ext: 'aar')
+        // Nosmai Android SDK
+        api(name: 'nosmai-release', ext: 'aar')
         
         // Test dependencies
         testImplementation("org.jetbrains.kotlin:kotlin-test")
