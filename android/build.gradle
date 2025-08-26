@@ -14,13 +14,10 @@ buildscript {
     }
 }
 
-rootProject.allprojects {
+allprojects {
     repositories {
         google()
         mavenCentral()
-        flatDir {
-            dirs project(':nosmai_camera_sdk').projectDir.toString() + '/libs'
-        }
     }
 }
 
@@ -53,8 +50,9 @@ android {
     }
 
     dependencies {
-        // Nosmai Android SDK
-        api(name: 'nosmai-release', ext: 'aar')
+        // Nosmai Android SDK - must be provided by the host app
+        // Add nosmai-release.aar to android/app/libs/ folder
+        compileOnly fileTree(dir: "${project.rootDir.parentFile.parentFile}/android/app/libs", include: ['nosmai-release.aar'])
         
         // Test dependencies
         testImplementation("org.jetbrains.kotlin:kotlin-test")
