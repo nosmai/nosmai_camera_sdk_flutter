@@ -29,7 +29,7 @@ class NosmaiFilter {
   final String path;
   final int fileSize;
   final String type; // "cloud" or "local" - indicates source location
-  final NosmaiFilterCategory filterCategory; // beauty, effect, filter, unknown
+  final NosmaiFilterCategory filterCategory; // beauty, effect, filter
   final NosmaiFilterSourceType sourceType; // filter, effect
 
   // Cloud-specific properties (optional for local filters)

@@ -162,7 +162,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
       });
       return result ?? false;
     } catch (e) {
-      // Error logged internally
       return false;
     }
   }
@@ -418,6 +417,15 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
   Future<void> detachCameraView() async {
     try {
       await methodChannel.invokeMethod('detachCameraView');
+    } catch (e) {
+      rethrow;
+    }
+  }
+  
+  @override
+  Future<void> reinitializePreview() async {
+    try {
+      await methodChannel.invokeMethod('reinitializePreview');
     } catch (e) {
       rethrow;
     }
@@ -719,5 +727,43 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     } catch (e) {
       return NosmaiTorchMode.off;
     }
+  }
+
+  // Android Texture-based preview helpers
+  @override
+  Future<int?> createPreviewTexture({double? width, double? height}) async {
+    try {
+      final result = await methodChannel.invokeMethod<int>('createTexture', {
+        if (width != null) 'width': width,
+        if (height != null) 'height': height,
+      });
+      return result;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  @override
+  Future<bool> setRenderSurface(int textureId,
+      {required double width, required double height}) async {
+    try {
+      final result = await methodChannel.invokeMethod<bool>('setRenderSurface', {
+        'textureId': textureId,
+        'width': width,
+        'height': height,
+      });
+      return result ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  @override
+  Future<void> clearRenderSurface(int textureId) async {
+    try {
+      await methodChannel.invokeMethod('clearRenderSurface', {
+        'textureId': textureId,
+      });
+    } catch (_) {}
   }
 }

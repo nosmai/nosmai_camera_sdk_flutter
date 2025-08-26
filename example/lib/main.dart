@@ -5,12 +5,15 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:nosmai_camera_sdk/nosmai_camera_sdk.dart';
 import 'unified_camera_screen.dart';
 
-/// Main entry point for the Nosmai Camera SDK example application
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    await NosmaiFlutter.initialize('NOSMAI-KEY');
+    await Permission.camera.request();
+    await Permission.microphone.request();
+    await NosmaiFlutter.initialize(
+      'API-KEY',
+    );
   } catch (e) {
     print('Failed to initialize Nosmai SDK: $e');
   }
@@ -27,11 +30,9 @@ class NosmaiCameraApp extends StatelessWidget {
       title: 'Nosmai Camera',
       theme: _buildAppTheme(),
       home: const HomePage(),
-      // home: const TestingScreen(),
     );
   }
 
-  /// Creates and returns the application theme
   ThemeData _buildAppTheme() {
     return ThemeData(
       colorScheme: ColorScheme.fromSeed(
@@ -43,8 +44,6 @@ class NosmaiCameraApp extends StatelessWidget {
   }
 }
 
-/// Home page widget that displays the main interface
-/// Contains the camera launch button and feature showcase
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -60,7 +59,6 @@ class _HomePageState extends State<HomePage> {
   static const Color _backgroundColor = Color(0xFF0A0A0A);
   static const Color _surfaceColor = Color(0xFF1A1A1A);
 
-  // Feature card colors
   static const Color _effectsColor = Color(0xFF6C5CE7);
   static const Color _beautyColor = Color(0xFFFF6B6B);
   static const Color _colorColor = Color(0xFF4ECDC4);
@@ -81,7 +79,10 @@ class _HomePageState extends State<HomePage> {
         child: SafeArea(
           child: SingleChildScrollView(
             padding: _buildScreenPadding(
-                screenWidth, isSmallScreen, isVerySmallScreen),
+              screenWidth,
+              isSmallScreen,
+              isVerySmallScreen,
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -90,7 +91,10 @@ class _HomePageState extends State<HomePage> {
                 _buildTitleSection(isSmallScreen),
                 _buildCameraButton(context, screenWidth, isSmallScreen),
                 _buildFeatureGrid(
-                    screenWidth, isSmallScreen, isVerySmallScreen),
+                  screenWidth,
+                  isSmallScreen,
+                  isVerySmallScreen,
+                ),
                 _buildVersionInfo(),
                 _buildBottomSpacing(isSmallScreen),
               ],
@@ -114,7 +118,10 @@ class _HomePageState extends State<HomePage> {
 
   /// Creates responsive padding based on screen size
   EdgeInsets _buildScreenPadding(
-      double screenWidth, bool isSmallScreen, bool isVerySmallScreen) {
+    double screenWidth,
+    bool isSmallScreen,
+    bool isVerySmallScreen,
+  ) {
     return EdgeInsets.symmetric(
       horizontal: screenWidth * 0.06,
       vertical: isVerySmallScreen ? 12.0 : (isSmallScreen ? 16.0 : 24.0),
@@ -123,9 +130,7 @@ class _HomePageState extends State<HomePage> {
 
   /// Creates top spacing widget
   Widget _buildTopSpacing(bool isSmallScreen, bool isVerySmallScreen) {
-    return SizedBox(
-      height: isVerySmallScreen ? 16 : (isSmallScreen ? 20 : 30),
-    );
+    return SizedBox(height: isVerySmallScreen ? 16 : (isSmallScreen ? 20 : 30));
   }
 
   /// Creates the app logo/icon widget
@@ -138,10 +143,7 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
-          colors: [
-            _primaryColor,
-            _primaryColor.withOpacity(0.6),
-          ],
+          colors: [_primaryColor, _primaryColor.withOpacity(0.6)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -197,7 +199,10 @@ class _HomePageState extends State<HomePage> {
 
   /// Creates the main camera button
   Widget _buildCameraButton(
-      BuildContext context, double screenWidth, bool isSmallScreen) {
+    BuildContext context,
+    double screenWidth,
+    bool isSmallScreen,
+  ) {
     return Column(
       children: [
         GestureDetector(
@@ -210,10 +215,7 @@ class _HomePageState extends State<HomePage> {
             height: isSmallScreen ? 48 : 56,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  _primaryColor,
-                  _primaryColor.withOpacity(0.8),
-                ],
+                colors: [_primaryColor, _primaryColor.withOpacity(0.8)],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
               ),
@@ -280,8 +282,12 @@ class _HomePageState extends State<HomePage> {
                 const UnifiedCameraScreen(),
             transitionDuration: const Duration(milliseconds: 100),
             reverseTransitionDuration: const Duration(milliseconds: 100),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -298,7 +304,10 @@ class _HomePageState extends State<HomePage> {
 
   /// Creates the feature showcase grid
   Widget _buildFeatureGrid(
-      double screenWidth, bool isSmallScreen, bool isVerySmallScreen) {
+    double screenWidth,
+    bool isSmallScreen,
+    bool isVerySmallScreen,
+  ) {
     return Column(
       children: [
         Container(
@@ -316,7 +325,6 @@ class _HomePageState extends State<HomePage> {
               _buildFeatureCard(
                 icon: Icons.auto_awesome,
                 title: 'Effects',
-                subtitle: '20+ filters',
                 color: _effectsColor,
                 isSmallScreen: isSmallScreen,
                 isVerySmallScreen: isVerySmallScreen,
@@ -324,7 +332,6 @@ class _HomePageState extends State<HomePage> {
               _buildFeatureCard(
                 icon: Icons.face_retouching_natural,
                 title: 'Beauty',
-                subtitle: 'AI enhanced',
                 color: _beautyColor,
                 isSmallScreen: isSmallScreen,
                 isVerySmallScreen: isVerySmallScreen,
@@ -332,7 +339,6 @@ class _HomePageState extends State<HomePage> {
               _buildFeatureCard(
                 icon: Icons.palette_outlined,
                 title: 'Color',
-                subtitle: 'Pro tools',
                 color: _colorColor,
                 isSmallScreen: isSmallScreen,
                 isVerySmallScreen: isVerySmallScreen,
@@ -340,7 +346,6 @@ class _HomePageState extends State<HomePage> {
               _buildFeatureCard(
                 icon: Icons.videocam_rounded,
                 title: 'Record',
-                subtitle: 'HD video',
                 color: _recordColor,
                 isSmallScreen: isSmallScreen,
                 isVerySmallScreen: isVerySmallScreen,
@@ -357,10 +362,7 @@ class _HomePageState extends State<HomePage> {
   Widget _buildVersionInfo() {
     return Text(
       'Version 1.0.0',
-      style: TextStyle(
-        fontSize: 12,
-        color: Colors.white.withOpacity(0.3),
-      ),
+      style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.3)),
     );
   }
 
@@ -373,7 +375,6 @@ class _HomePageState extends State<HomePage> {
   Widget _buildFeatureCard({
     required IconData icon,
     required String title,
-    required String subtitle,
     required Color color,
     bool isSmallScreen = false,
     bool isVerySmallScreen = false,
@@ -382,11 +383,9 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
       ),
+      alignment: Alignment.center,
       child: Padding(
         padding: EdgeInsets.all(
           isVerySmallScreen ? 8 : (isSmallScreen ? 10 : 14),
@@ -429,17 +428,6 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 2),
 
             // Subtitle
-            Flexible(
-              child: Text(
-                subtitle,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
-                  fontSize: isVerySmallScreen ? 8 : (isSmallScreen ? 9 : 11),
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
           ],
         ),
       ),

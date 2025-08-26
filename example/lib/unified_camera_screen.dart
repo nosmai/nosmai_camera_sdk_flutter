@@ -1,3 +1,7 @@
+// ignore_for_file: avoid_print
+
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nosmai_camera_sdk/nosmai_camera_sdk.dart';
@@ -55,6 +59,29 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
     _loadFiltersInBackground();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Ensure camera is configured when returning to this screen
+    _ensureCameraReady();
+  }
+
+  /// Ensure camera is ready when returning to screen
+  Future<void> _ensureCameraReady() async {
+    try {
+      // Small delay to ensure previous cleanup completed
+      await Future.delayed(const Duration(milliseconds: 100));
+      // Reinitialize preview for proper navigation recovery
+      await _nosmai.reinitializePreview();
+      // Start processing to ensure camera is ready
+      if (!_nosmai.isProcessing) {
+        await _nosmai.startProcessing();
+      }
+    } catch (e) {
+      debugPrint('Error ensuring camera ready: $e');
+    }
+  }
+
   /// Configure camera when user first opens camera screen
   Future<void> _configureCameraForFirstUse() async {
     try {
@@ -70,11 +97,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   /// Initialize filter categories with default values
   void _initializeCategories() {
     _categories = [
-      FilterCategory(
-        name: 'Effects',
-        icon: Icons.auto_awesome,
-        filters: [],
-      ),
+      FilterCategory(name: 'Effects', icon: Icons.auto_awesome, filters: []),
       FilterCategory(
         name: 'Beauty',
         icon: Icons.face_retouching_natural,
@@ -90,11 +113,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
         icon: Icons.tune,
         filters: _createHSBFilters(),
       ),
-      FilterCategory(
-        name: 'Cloud',
-        icon: Icons.cloud_queue,
-        filters: [],
-      ),
+      FilterCategory(name: 'Cloud', icon: Icons.cloud_queue, filters: []),
     ];
   }
 
@@ -224,12 +243,14 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
 
       for (final filter in filters) {
         if (filter.isLocalFilter) {
-          effectFilters.add(FilterItem(
-            id: filter.path,
-            name: filter.displayName,
-            type: FilterType.effect,
-            path: filter.path,
-          ));
+          effectFilters.add(
+            FilterItem(
+              id: filter.path,
+              name: filter.displayName,
+              type: FilterType.effect,
+              path: filter.path,
+            ),
+          );
         }
       }
 
@@ -272,21 +293,24 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   /// Create FilterItem objects from cloud filters
   List<FilterItem> _createCloudFilterItems(List<dynamic> filters) {
     return filters
-        .map((filter) => FilterItem(
-              id: filter.id,
-              name: filter.displayName,
-              type: FilterType.effect,
-              path: filter.path, // Path is null if not downloaded
-              isDownloaded: filter.isDownloaded, // Check if already downloaded
-            ))
+        .map(
+          (filter) => FilterItem(
+            id: filter.id,
+            name: filter.displayName,
+            type: FilterType.effect,
+            path: filter.path, // Path is null if not downloaded
+            isDownloaded: filter.isDownloaded, // Check if already downloaded
+          ),
+        )
         .toList();
   }
 
   /// Update cloud filters in the UI
   void _updateCloudFiltersInUI(List<FilterItem> cloudFilters) {
     setState(() {
-      final cloudCategoryIndex =
-          _categories.indexWhere((cat) => cat.name == 'Cloud');
+      final cloudCategoryIndex = _categories.indexWhere(
+        (cat) => cat.name == 'Cloud',
+      );
       if (cloudCategoryIndex != -1) {
         _categories[cloudCategoryIndex].filters = cloudFilters;
       }
@@ -468,12 +492,15 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   }
 
   Future<void> _applyHSBFilters() async {
-    final hueFilter =
-        _categories[3].filters.firstWhere((f) => f.id == 'hsb_hue');
-    final satFilter =
-        _categories[3].filters.firstWhere((f) => f.id == 'hsb_saturation');
-    final brightnessFilter =
-        _categories[3].filters.firstWhere((f) => f.id == 'hsb_brightness');
+    final hueFilter = _categories[3].filters.firstWhere(
+          (f) => f.id == 'hsb_hue',
+        );
+    final satFilter = _categories[3].filters.firstWhere(
+          (f) => f.id == 'hsb_saturation',
+        );
+    final brightnessFilter = _categories[3].filters.firstWhere(
+          (f) => f.id == 'hsb_brightness',
+        );
 
     try {
       await _nosmai.resetHSBFilter();
@@ -579,7 +606,8 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
           _isFrontCamera = !_isFrontCamera;
         });
         debugPrint(
-            '✅ Camera switched successfully to ${_isFrontCamera ? 'front' : 'back'}');
+          '✅ Camera switched successfully to ${_isFrontCamera ? 'front' : 'back'}',
+        );
       } else {
         debugPrint('🔄 Camera switch throttled - ignored rapid tap');
       }
@@ -629,8 +657,10 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
             Text(message),
             if (actions != null && actions.isNotEmpty) ...[
               const SizedBox(height: 16),
-              const Text('Suggested actions:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Suggested actions:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 8),
               ...actions.map((action) => Text('• $action')),
             ],
@@ -705,7 +735,9 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                      side: BorderSide(
+                        color: Colors.white.withOpacity(0.3),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -796,11 +828,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const Icon(
-              Icons.videocam,
-              color: Color(0xFF4ECDC4),
-              size: 48,
-            ),
+            const Icon(Icons.videocam, color: Color(0xFF4ECDC4), size: 48),
             const SizedBox(height: 16),
             const Text(
               'Video Recorded!',
@@ -819,8 +847,10 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF6C5CE7),
                 foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -868,9 +898,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
       body: Stack(
         children: [
           const Positioned.fill(
-            child: RepaintBoundary(
-              child: NosmaiCameraPreview(),
-            ),
+            child: RepaintBoundary(child: NosmaiCameraPreview()),
           ),
 
           // Top Controls
@@ -891,8 +919,10 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
               ),
               child: SafeArea(
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -908,7 +938,9 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                           if (_activeFilter != null)
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(20),
@@ -955,9 +987,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
             Positioned.fill(
               child: GestureDetector(
                 onTap: _toggleFilterPanel,
-                child: Container(
-                  color: Colors.transparent,
-                ),
+                child: Container(color: Colors.transparent),
               ),
             ),
 
@@ -975,7 +1005,9 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                       screenHeight < 700 ? screenHeight * 0.4 : 300.0;
                   return Transform.translate(
                     offset: Offset(
-                        0, panelHeight * (1 - _filterPanelController.value)),
+                      0,
+                      panelHeight * (1 - _filterPanelController.value),
+                    ),
                     child: Opacity(
                       opacity: _filterPanelController.value,
                       child: _buildFilterPanel(),
@@ -1012,7 +1044,9 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                         // Action Buttons
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 16),
+                            horizontal: 20,
+                            vertical: 16,
+                          ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
@@ -1056,7 +1090,9 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                                             shape: BoxShape.circle,
                                             color: _isRecording
                                                 ? Colors.red
-                                                : Colors.white.withOpacity(0.3),
+                                                : Colors.white.withOpacity(
+                                                    0.3,
+                                                  ),
                                           ),
                                           child: Icon(
                                             _isRecording
@@ -1114,7 +1150,9 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                   child: Center(
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.red,
                         borderRadius: BorderRadius.circular(16),
@@ -1172,10 +1210,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                     SizedBox(width: 8),
                     Text(
                       'Loading filters...',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.white, fontSize: 12),
                     ),
                   ],
                 ),
@@ -1227,11 +1262,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
               : Colors.white.withOpacity(0.2),
           shape: BoxShape.circle,
         ),
-        child: Icon(
-          icon,
-          color: Colors.white,
-          size: size,
-        ),
+        child: Icon(icon, color: Colors.white, size: size),
       ),
     );
   }
@@ -1274,8 +1305,10 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                   onTap: () => setState(() => _selectedCategoryIndex = index),
                   child: Container(
                     margin: const EdgeInsets.only(right: 8),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? const Color(0xFF6C5CE7)
@@ -1285,11 +1318,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          category.icon,
-                          color: Colors.white,
-                          size: 16,
-                        ),
+                        Icon(category.icon, color: Colors.white, size: 16),
                         const SizedBox(width: 6),
                         Text(
                           category.name,
@@ -1310,9 +1339,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
           const SizedBox(height: 12),
 
           // Filter Content
-          Expanded(
-            child: _buildFilterContent(),
-          ),
+          Expanded(child: _buildFilterContent()),
         ],
       ),
     );
@@ -1333,10 +1360,7 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
       return Center(
         child: Text(
           'No filters available',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
-            fontSize: 14,
-          ),
+          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14),
         ),
       );
     }
@@ -1447,8 +1471,9 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                     inactiveTrackColor: Colors.white.withOpacity(0.2),
                     thumbColor: const Color(0xFF6C5CE7),
                     overlayColor: const Color(0xFF6C5CE7).withOpacity(0.3),
-                    thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 6,
+                    ),
                     trackHeight: 3,
                   ),
                   child: Slider(
@@ -1475,7 +1500,21 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   void dispose() {
     _recordButtonController.dispose();
     _filterPanelController.dispose();
+    // Stop camera when leaving screen
+    _pauseCamera();
     super.dispose();
+  }
+
+  /// Pause camera when leaving screen
+  Future<void> _pauseCamera() async {
+    try {
+      // Just stop processing, don't dispose anything
+      if (_nosmai.isProcessing) {
+        await _nosmai.stopProcessing();
+      }
+    } catch (e) {
+      debugPrint('Error pausing camera: $e');
+    }
   }
 }
 

@@ -513,6 +513,12 @@ class NosmaiFlutter {
     _checkInitialized();
     await NosmaiFlutterPlatform.instance.detachCameraView();
   }
+  
+  /// Reinitialize the preview (useful for navigation recovery)
+  Future<void> reinitializePreview() async {
+    _checkInitialized();
+    await NosmaiFlutterPlatform.instance.reinitializePreview();
+  }
 
   /// Save image data to device gallery
   Future<Map<String, dynamic>> saveImageToGallery(List<int> imageData,

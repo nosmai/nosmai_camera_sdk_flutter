@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../nosmai_camera_sdk.dart';
+import '../platform/platform_interface.dart';
 
 /// A widget that displays the Nosmai camera preview with proper lifecycle management
 class NosmaiCameraPreview extends StatefulWidget {
@@ -59,6 +60,7 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
   late final NosmaiFlutter _nosmaiFlutter;
   static int _viewCounter = 0;
   late final String _viewKey;
+  int? _androidTextureId;
 
   @override
   void initState() {
@@ -72,12 +74,19 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     // Attach controller if provided
     widget.controller?._attach(this);
 
-    // Camera is pre-warmed, set as initialized immediately
-    _isInitialized = true;
-    _isInitializing = false;
-
-    // Call onInitialized callback immediately
-    widget.onInitialized?.call();
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      // Delay to ensure widget is fully mounted and context is ready
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _initializeAndroidTexturePreview();
+        }
+      });
+    } else {
+      // Camera is pre-warmed, set as initialized immediately for iOS
+      _isInitialized = true;
+      _isInitializing = false;
+      widget.onInitialized?.call();
+    }
   }
 
   @override
@@ -118,7 +127,12 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
 
   Future<void> _pauseCamera() async {
     try {
-      if (_isInitialized && _nosmaiFlutter.isProcessing) {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        // Best-effort stop on Android (no-op if not implemented)
+        if (_isInitialized && _nosmaiFlutter.isProcessing) {
+          await _nosmaiFlutter.stopProcessing();
+        }
+      } else if (_isInitialized && _nosmaiFlutter.isProcessing) {
         await _nosmaiFlutter.stopProcessing();
       }
     } catch (e) {
@@ -176,6 +190,16 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
   void _cleanupOnDispose() {
     try {
       // Fire and forget - don't wait for async operations
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final id = _androidTextureId;
+        if (id != null) {
+          // Clear Android render surface and reset texture ID
+          NosmaiFlutterPlatform.instance.clearRenderSurface(id).catchError((_) {});
+          _androidTextureId = null;
+        }
+        // Stop processing to release camera
+        _nosmaiFlutter.stopProcessing().catchError((_) {});
+      }
       _nosmaiFlutter.detachCameraView().catchError((e) {});
     } catch (e) {
       // Ignore disposal errors
@@ -190,30 +214,50 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     // Longer delay to ensure everything is cleaned up
     await Future.delayed(const Duration(milliseconds: 1000));
 
-    // Force reset to initialized state (camera is pre-warmed)
-    if (mounted) {
-      setState(() {
-        _isInitialized = true;
-        _isInitializing = false;
-        _initError = null;
-      });
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      // Recreate texture pipeline on Android
+      await _initializeAndroidTexturePreview();
+    } else {
+      // Force reset to initialized state (camera is pre-warmed) on iOS
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+          _isInitializing = false;
+          _initError = null;
+        });
+      }
+      widget.onInitialized?.call();
     }
-
-    // Call onInitialized callback
-    widget.onInitialized?.call();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (defaultTargetPlatform != TargetPlatform.iOS) {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      // Android Texture-based preview
+      final mediaQuery = MediaQuery.of(context);
+      final screenSize = mediaQuery.size;
+      final screenWidth = screenSize.width;
+      final screenHeight = screenSize.height;
+
+      if (_androidTextureId == null) {
+        return Container(
+          width: widget.width ?? screenWidth,
+          height: widget.height ?? screenHeight,
+          color: const Color(0xFF000000),
+          child: const Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          ),
+        );
+      }
+
       return Container(
-        width: widget.width,
-        height: widget.height,
-        color: const Color(0xFF000000),
-        child: const Center(
-          child: Text(
-            'Camera preview only supported on iOS',
-            style: TextStyle(color: Colors.white),
+        width: widget.width ?? screenWidth,
+        height: widget.height ?? screenHeight,
+        color: Colors.black,
+        child: Center(
+          child: AspectRatio(
+            aspectRatio: screenWidth / screenHeight,
+            child: Texture(textureId: _androidTextureId!),
           ),
         ),
       );
@@ -341,5 +385,56 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     }
 
     return deviceType;
+  }
+
+  Future<void> _initializeAndroidTexturePreview() async {
+    print('NosmaiCameraPreview: Starting Android texture initialization');
+    setState(() {
+      _isInitializing = true;
+      _initError = null;
+    });
+
+    try {
+      // Create a texture on the native side
+      final mediaQuery = WidgetsBinding.instance.platformDispatcher.views.first.physicalSize;
+      final width = MediaQuery.of(context).size.width;
+      final height = MediaQuery.of(context).size.height;
+      
+      print('NosmaiCameraPreview: Creating texture with size: ${width}x${height}');
+
+      final textureId = await NosmaiFlutterPlatform.instance
+          .createPreviewTexture(width: width, height: height);
+
+      if (textureId == null) {
+        throw PlatformException(code: 'TEXTURE_ERROR', message: 'Failed to create preview texture');
+      }
+
+      final ok = await NosmaiFlutterPlatform.instance
+          .setRenderSurface(textureId, width: width, height: height);
+
+      if (!ok) {
+        throw PlatformException(code: 'SURFACE_ERROR', message: 'Failed to bind render surface');
+      }
+
+      if (mounted) {
+        setState(() {
+          _androidTextureId = textureId;
+          _isInitialized = true;
+          _isInitializing = false;
+        });
+      }
+
+      // Notify initialized
+      widget.onInitialized?.call();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _initError = e.toString();
+          _isInitialized = false;
+          _isInitializing = false;
+        });
+      }
+      widget.onError?.call(e.toString());
+    }
   }
 }

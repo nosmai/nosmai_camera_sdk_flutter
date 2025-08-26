@@ -53,6 +53,7 @@ class _MetadataFilterExampleState extends State<MetadataFilterExample> {
   /// This method fetches filters from both local and cloud sources,
   /// then organizes them by category based on their metadata.
   Future<void> _loadFilters() async {
+    
     setState(() => _isLoading = true);
 
     try {

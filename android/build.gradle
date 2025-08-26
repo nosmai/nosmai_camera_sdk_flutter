@@ -18,6 +18,9 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        flatDir {
+            dirs "${rootProject.projectDir}/src/main/libs"
+        }
     }
 }
 
@@ -50,6 +53,10 @@ android {
     }
 
     dependencies {
+        // Nosmai Android SDK
+        implementation(name: 'nosmai-release', ext: 'aar')
+        
+        // Test dependencies
         testImplementation("org.jetbrains.kotlin:kotlin-test")
         testImplementation("org.mockito:mockito-core:5.0.0")
     }
