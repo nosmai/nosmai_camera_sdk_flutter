@@ -57,7 +57,8 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     // Hidden preview (ensures GL context prepared for some engines)
     private var previewView: NosmaiPreviewView? = null
-    private var camera2Helper: Camera2Helper? = null
+    // Camera2 helper removed; rely on SDK internal camera pipeline
+    // private var camera2Helper: Camera2Helper? = null
     private val REQ_CAMERA = 2001
     private var surfaceReboundOnce = false
     private var fpsCount = 0
@@ -356,7 +357,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 isProcessingActive = true
                 try { NosmaiSDK.setCameraFacing(isFrontCamera) } catch (_: Throwable) {}
                 try { NosmaiSDK.setMirrorX(isFrontCamera) } catch (_: Throwable) {}
-                ensureCameraPermissionThenStart()
                 result.success(null)
             } else {
                 result.error("NO_PREVIEW", "Preview not initialized", null)
@@ -371,8 +371,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         try {
             NosmaiSDK.stopProcessing()
             isProcessingActive = false
-            camera2Helper?.stopCamera()
-            camera2Helper = null
             result.success(null)
         } catch (t: Throwable) {
             Log.e(TAG, "stopProcessing error", t)
@@ -402,37 +400,15 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                     // Toggle target facing
                     isFrontCamera = !isFrontCamera
 
-                    // Stop existing camera feed to avoid races; keep GL/render surface intact
-                    try { camera2Helper?.stopCamera() } catch (_: Throwable) {}
-                    camera2Helper = null
-
-                    // Ensure subsequent frame pipeline rebinds to new size once
+                    // Reset surface bind flag so SDK can adjust if needed
                     surfaceReboundOnce = false
 
-                    // Apply facing to SDK immediately (mirror will be set on first frame to avoid flicker)
+                    // Apply facing to SDK; rely on SDK internal camera control
                     try { NosmaiSDK.setCameraFacing(isFrontCamera) } catch (_: Throwable) {}
+                    try { NosmaiSDK.setMirrorX(isFrontCamera) } catch (_: Throwable) {}
 
-                    // Give camera HAL a brief moment to release before reopening
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        try {
-                            camera2Helper = Camera2Helper(act, isFrontCamera)
-                            ensureCameraPermissionThenStart()
-                            // If processing was already active, do not restart here; surface will rebind on first frame
-                            // If not active (edge case), start it now
-                            try {
-                                if (!isProcessingActive && previewView != null) {
-                                    NosmaiSDK.startProcessing(previewView!!)
-                                    isProcessingActive = true
-                                }
-                            } catch (_: Throwable) {}
-                            result.success(true)
-                        } catch (e: Throwable) {
-                            Log.e(TAG, "switchCamera delayed open error", e)
-                            result.success(false)
-                        } finally {
-                            isSwitchingCamera = false
-                        }
-                    }, 300)
+                    result.success(true)
+                    isSwitchingCamera = false
                 } catch (t: Throwable) {
                     Log.e(TAG, "switchCamera error", t)
                     result.success(false)
@@ -675,9 +651,9 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                     } catch (_: Throwable) {}
                 }
                 
-                // ALWAYS include thumbnailUrl/previewUrl if available (matching iOS behavior)
+                // ALWAYS include thumbnailUrl/previewUrl if available
                 if (it.thumbnailUrl.isNotBlank()) {
-                    m["previewUrl"] = it.thumbnailUrl  // Use previewUrl to match iOS field name
+                    m["previewUrl"] = it.thumbnailUrl  // Use previewUrl 
                     m["thumbnailUrl"] = it.thumbnailUrl  // Also include thumbnailUrl for compatibility
                 }
                 
@@ -1111,9 +1087,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                         isProcessingActive = false
                     }
                     
-                    // Stop camera if running
-                    camera2Helper?.stopCamera()
-                    camera2Helper = null
+                    // Camera is managed by SDK; no explicit Camera2 helper
                     
                     // Clear any active filters/effects
                     NosmaiEffects.removeEffect()
@@ -1435,69 +1409,17 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     // Permissions and camera start like backup
     private fun ensureCameraPermissionThenStart() {
         val act = activity ?: return
-        if (ContextCompat.checkSelfPermission(act, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            startCamera()
-        } else {
+        if (ContextCompat.checkSelfPermission(act, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             activityBinding?.addRequestPermissionsResultListener(this)
             ActivityCompat.requestPermissions(act, arrayOf(Manifest.permission.CAMERA), REQ_CAMERA)
         }
-    }
-
-    private fun startCamera() {
-        val act = activity ?: return
-        if (camera2Helper == null) camera2Helper = Camera2Helper(act, isFrontCamera)
-        val helper = camera2Helper ?: return
-        val pv = previewView ?: return
-        
-        // Set target dimensions if available
-        val w = pendingSurfaceWidth
-        val h = pendingSurfaceHeight
-        if (w != null && h != null) {
-            helper.setTargetDimensions(w, h)
-        }
-
-        // Inform SDK about camera orientation and facing
-        pv.setCameraOrientation(helper.isFrontCamera, helper.sensorOrientation)
-
-        helper.setFrameCallback(object : Camera2Helper.FrameCallback {
-            override fun onFrameAvailable(
-                y: java.nio.ByteBuffer?, u: java.nio.ByteBuffer?, v: java.nio.ByteBuffer?,
-                width: Int, height: Int,
-                yStride: Int, uStride: Int, vStride: Int,
-                uPixelStride: Int, vPixelStride: Int
-            ) {
-                if (y == null || u == null || v == null) return
-
-                if (!surfaceReboundOnce) {
-                    try {
-                        textureEntry?.surfaceTexture()?.setDefaultBufferSize(width, height)
-                        surface?.let { NosmaiSDK.setRenderSurface(it, width, height) }
-                        NosmaiSDK.setMirrorX(helper.isFrontCamera)
-                        surfaceReboundOnce = true
-                    } catch (_: Throwable) {}
-                }
-
-                pv.processYuvFrame(
-                    y, u, v,
-                    width, height,
-                    yStride, uStride, vStride,
-                    uPixelStride, vPixelStride,
-                    calculateFrameRotation(helper.sensorOrientation, helper.isFrontCamera)
-                )
-                pv.requestRenderUpdate()
-            }
-        })
-        helper.startCamera()
-    }
-
-    private fun calculateFrameRotation(sensorOrientation: Int, front: Boolean): Int {
-        return if (front) { if (sensorOrientation == 270) 1 else 6 } else { if (sensorOrientation == 90) 2 else 1 }
+        // SDK manages camera internally during startProcessing
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray): Boolean {
         if (requestCode == REQ_CAMERA) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCamera()
+                // Permission granted; SDK will handle camera when processing starts
             } else {
                 Log.e(TAG, "Camera permission denied")
             }

@@ -23,7 +23,7 @@ A Flutter plugin for integrating the Nosmai SDK - Real-time video filtering and 
 | Platform | Status |
 |----------|--------|
 | iOS      | ✅ Supported (iOS 14.0+) |
-| Android  | 🚧 Planned |
+| Android  | ✅ Supported |
 
 ## Requirements
 

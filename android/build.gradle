@@ -50,10 +50,10 @@ android {
     }
 
     dependencies {
-        // Nosmai Android SDK - provided by the host app
-        // Users must add nosmai-release.aar to android/app/libs/ folder
-        // and add: implementation(files("libs/nosmai-release.aar")) to app/build.gradle
-        
+        // Rely on host app to provide the AAR via flatDir (app/libs)
+        // This avoids AGP error for bundling local AARs inside a plugin AAR.
+        compileOnly(name: 'nosmai-release', ext: 'aar')
+
         // Test dependencies
         testImplementation("org.jetbrains.kotlin:kotlin-test")
         testImplementation("org.mockito:mockito-core:5.0.0")
