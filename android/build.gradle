@@ -18,9 +18,6 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        flatDir {
-            dirs 'libs'
-        }
     }
 }
 
@@ -53,8 +50,17 @@ android {
     }
 
     dependencies {
-        // Nosmai Android SDK
-        implementation(name: 'nosmai-release', ext: 'aar')
+        // Nosmai Android SDK - provided by the app at runtime
+        def aarFile = project.rootProject.file("app/libs/nosmai-release.aar")
+        if (aarFile.exists()) {
+            compileOnly files(aarFile)
+        } else {
+            // Fallback for local development
+            def localAar = file("libs/nosmai-release.aar")
+            if (localAar.exists()) {
+                compileOnly files(localAar)
+            }
+        }
         
         // Test dependencies
         testImplementation("org.jetbrains.kotlin:kotlin-test")
