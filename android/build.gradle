@@ -50,9 +50,9 @@ android {
     }
 
     dependencies {
-        // Nosmai Android SDK - must be provided by the host app
-        // Add nosmai-release.aar to android/app/libs/ folder
-        compileOnly fileTree(dir: "${project.rootDir.parentFile.parentFile}/android/app/libs", include: ['nosmai-release.aar'])
+        // Nosmai Android SDK - provided by the host app
+        // Users must add nosmai-release.aar to android/app/libs/ folder
+        // and add: implementation(files("libs/nosmai-release.aar")) to app/build.gradle
         
         // Test dependencies
         testImplementation("org.jetbrains.kotlin:kotlin-test")
