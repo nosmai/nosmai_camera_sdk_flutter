@@ -1,3 +1,6 @@
+## 1.0.4+2
+- Fix android camera issue
+
 ## 1.0.4+1
 - resolve .AAR build issue
 

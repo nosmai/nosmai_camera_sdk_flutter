@@ -73,9 +73,7 @@ public class Camera2Helper {
     public void setFrameCallback(FrameCallback cb) { this.frameCallback = cb; }
 
     public int getSensorOrientation() { return sensorOrientation; }
-    
-    
-    
+
     public boolean isFrontCamera() { return currentFacing == CameraCharacteristics.LENS_FACING_FRONT; }
 
     public int getPreviewWidth() { return previewSize != null ? previewSize.getWidth() : 0; }

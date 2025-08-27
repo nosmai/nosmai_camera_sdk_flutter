@@ -116,6 +116,73 @@ cd ios && pod install
 
 > **Important**: The camera, microphone, and photo library permissions are required for the plugin to function properly. Without these permissions, the app will crash when trying to access the camera or save media to the gallery.
 
+### Android Setup (AAR-based)
+
+Until the Nosmai Android SDK is available from a public Maven repository, this plugin expects your app module to provide the `.aar` file. Follow these steps:
+
+1) Place the AAR file in your app module
+- Copy your Nosmai SDK AAR to: `android/app/libs/nosmai-release.aar`
+
+2) Tell Gradle where to find local AARs
+- If your Android project uses Groovy build files (default in most Flutter apps), open `android/build.gradle` and add this inside `allprojects.repositories`:
+
+```gradle
+allprojects {
+  repositories {
+    google()
+    mavenCentral()
+    flatDir { dirs "${rootProject.projectDir}/app/libs" }
+  }
+}
+```
+
+- If your project uses Kotlin DSL (`build.gradle.kts`), add this to `android/build.gradle.kts`:
+
+```kts
+allprojects {
+  repositories {
+    google()
+    mavenCentral()
+    flatDir { dirs("${rootProject.projectDir}/app/libs") }
+  }
+}
+```
+
+3) Add the AAR as a dependency in your app module
+- Groovy (`android/app/build.gradle`):
+```gradle
+dependencies {
+  implementation files('libs/nosmai-release.aar')
+}
+```
+
+- Kotlin DSL (`android/app/build.gradle.kts`):
+```kts
+dependencies {
+  implementation(files("libs/nosmai-release.aar"))
+}
+```
+
+4) Permissions (in your app’s `AndroidManifest.xml`)
+```xml
+<uses-permission android:name="android.permission.CAMERA"/>
+<uses-permission android:name="android.permission.RECORD_AUDIO"/>
+<uses-permission android:name="android.permission.INTERNET"/>
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+<!-- Optional for legacy external storage access (API ≤ 28) -->
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+```
+
+Notes
+- The plugin references the Android SDK via `compileOnly`; your app must provide the AAR until a Maven coordinate is available.
+- Minimum supported Android API level is 21.
+- Remember to request runtime permissions for Camera and Microphone before starting processing/recording.
+
+Troubleshooting
+- Duplicate classes: ensure only your app provides the AAR. The plugin should NOT also bundle it.
+- “Direct local .aar not supported when building an AAR”: this occurs if you try to package the AAR inside a library/plugin. Keep the AAR in the app module instead.
+
 ### Local Filters Setup
 
 To use local .nosmai filters in your app, you need to add them to your project assets:
