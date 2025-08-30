@@ -8,6 +8,9 @@ import android.view.Surface
 import android.view.ViewGroup
 import androidx.annotation.NonNull
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.plugin.common.StandardMessageCodec
+import io.flutter.plugin.platform.PlatformView
+import io.flutter.plugin.platform.PlatformViewFactory
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
@@ -54,6 +57,8 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private var surface: Surface? = null
     private var pendingSurfaceWidth: Int? = null
     private var pendingSurfaceHeight: Int? = null
+    private var isSurfaceReady: Boolean = false
+    private var pendingStartProcessing: Boolean = false
 
     // Hidden preview (ensures GL context prepared for some engines)
     private var previewView: NosmaiPreviewView? = null
@@ -62,6 +67,9 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private var surfaceReboundOnce = false
     private var fpsCount = 0
     private var fpsLastMs = 0L
+    private var cleanupInProgress: Boolean = false
+    private var lastCleanupAtMs: Long = 0L
+    private var usingPlatformView: Boolean = false
 
     companion object {
         private const val TAG = "NosmaiFlutterPlugin"
@@ -76,15 +84,48 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         textures = flutterPluginBinding.textureRegistry
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, CHANNEL)
         channel.setMethodCallHandler(this)
+
+        // Register Android platform view for preview (avoids Flutter Texture + EGL races)
+        flutterPluginBinding.platformViewRegistry.registerViewFactory(
+            "nosmai_camera_preview",
+            object : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
+                override fun create(context: Context?, viewId: Int, args: Any?): PlatformView {
+                    val ctx = context ?: this@NosmaiFlutterPlugin.context
+                    val container = android.widget.FrameLayout(ctx)
+                    // Create or reuse preview view
+                    val pv = NosmaiPreviewView(ctx)
+                    // Attach to container
+                    container.addView(
+                        pv,
+                        android.widget.FrameLayout.LayoutParams(
+                            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+                        )
+                    )
+                    // Point plugin to this visible preview view
+                    previewView = pv
+                    usingPlatformView = true
+                    try { attemptDeferredStart() } catch (_: Throwable) {}
+                    return object : PlatformView {
+                        override fun getView(): android.view.View = container
+                        override fun dispose() {
+                            // Do not stop SDK here; detachCameraView handles camera stop
+                            try { container.removeAllViews() } catch (_: Throwable) {}
+                            usingPlatformView = false
+                        }
+                    }
+                }
+            }
+        )
     }
 
     override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
         // Release texture & surface
         try { surface?.release() } catch (_: Throwable) {}
-        try { textureEntry?.release() } catch (_: Throwable) {}
         surface = null
-        textureEntry = null
+        // Do not force-release texture entry; Flutter owns the lifecycle
+        isSurfaceReady = false
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -100,7 +141,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             "startProcessing" -> handleStartProcessing(result)
             "stopProcessing" -> handleStopProcessing(result)
             "switchCamera" -> handleSwitchCamera(result)
-            "detachCameraView" -> result.success(null)
+            "detachCameraView" -> handleDetachCameraView(result)
             "removeAllFilters" -> handleRemoveAllFilters(result)
             "startRecording" -> handleStartRecording(result)
             "stopRecording" -> handleStopRecording(result)
@@ -115,6 +156,10 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             "applyBrightnessFilter" -> handleApplyBrightness(call, result)
             "applyContrastFilter" -> handleApplyContrast(call, result)
             "applyHue" -> handleApplyHue(call, result)
+            "applyRGBFilter" -> handleApplyRGBFilter(call, result)
+            "applyLipstick" -> handleApplyLipstick(call, result)
+            "applyBlusher" -> handleApplyBlusher(call, result)
+            "applyMakeupBlendLevel" -> handleApplyMakeupBlendLevel(call, result)
             "removeBuiltInFilters" -> handleRemoveBuiltInBeautyFilters(result)
             // Cloud filters
             "isCloudFilterEnabled" -> handleIsCloudFilterEnabled(result)
@@ -251,7 +296,18 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         }
         // Default mirror (front camera UX)
         try { NosmaiSDK.setMirrorX(true) } catch (_: Throwable) {}
+        
+        // 🎯 CRITICAL FIX: Initialize pipeline to set GLView for beauty filters
+        try {
+            previewView?.initializePipeline()
+            Log.i(TAG, "✅ Pipeline initialized - GLView set for beauty filters")
+        } catch (e: Throwable) {
+            Log.w(TAG, "⚠️ Pipeline initialization warning: ${e.message}")
+        }
+        
         isSdkInitialized = true
+        
+        
         // Bind any pending surface
         try {
             val w = pendingSurfaceWidth
@@ -261,23 +317,27 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 NosmaiSDK.setMirrorX(true)
                 pendingSurfaceWidth = null
                 pendingSurfaceHeight = null
+                isSurfaceReady = true
+                if (pendingStartProcessing && !isProcessingActive && previewView != null) {
+                    try {
+                        NosmaiSDK.startProcessing(previewView!!)
+                        isProcessingActive = true
+                        ensureCameraPermissionThenStart()
+                    } catch (_: Throwable) {}
+                    pendingStartProcessing = false
+                }
             }
         } catch (_: Throwable) {}
     }
+    
 
     // --- Texture/Surface helpers ---
     private fun handleCreateTexture(result: Result) {
         try {
-            // Release any existing texture first
-            val oldEntry = textureEntry
-            if (oldEntry != null) {
-                textureEntry = null
-                oldEntry.release()
-            }
-            
-            // Create new texture
+            // Always create a fresh texture entry; let Flutter dispose old ones
             textureEntry = textures.createSurfaceTexture()
-            surfaceReboundOnce = false // Reset binding flag for new texture
+            surfaceReboundOnce = false
+            isSurfaceReady = false
             result.success(textureEntry!!.id().toInt())
         } catch (t: Throwable) {
             Log.e(TAG, "createTexture error", t)
@@ -306,11 +366,23 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             if (isSdkInitialized) {
                 NosmaiSDK.setRenderSurface(surface!!, w, h)
                 try { NosmaiSDK.setMirrorX(true) } catch (_: Throwable) {}
+                isSurfaceReady = true
+                if (pendingStartProcessing && !isProcessingActive) {
+                    try {
+                        previewView?.let {
+                            NosmaiSDK.startProcessing(it)
+                            isProcessingActive = true
+                            ensureCameraPermissionThenStart()
+                        }
+                    } catch (e: Throwable) { Log.e(TAG, "deferred startProcessing error", e) }
+                    pendingStartProcessing = false
+                }
                 result.success(true)
             } else {
                 // Defer until init
                 pendingSurfaceWidth = w
                 pendingSurfaceHeight = h
+                isSurfaceReady = true
                 result.success(true)
             }
         } catch (t: Throwable) {
@@ -340,6 +412,17 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun handleStartProcessing(result: Result) {
         try {
+            // If cleanup is still in progress, defer start to avoid EGL/camera races
+            val now = System.currentTimeMillis()
+            if (cleanupInProgress || (now - lastCleanupAtMs) < 700) {
+                pendingStartProcessing = true
+                val delay = (700 - (now - lastCleanupAtMs)).coerceAtLeast(100)
+                Handler(Looper.getMainLooper()).postDelayed({
+                    try { attemptDeferredStart() } catch (_: Throwable) {}
+                }, delay)
+                result.success(null)
+                return
+            }
             // Ensure preview view exists
             val act = activity
             if (act != null && previewView == null) {
@@ -351,16 +434,24 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                     previewView?.alpha = 0f
                 }
             }
-            if (previewView != null) {
-                NosmaiSDK.startProcessing(previewView!!)
-                isProcessingActive = true
-                try { NosmaiSDK.setCameraFacing(isFrontCamera) } catch (_: Throwable) {}
-                try { NosmaiSDK.setMirrorX(isFrontCamera) } catch (_: Throwable) {}
-                ensureCameraPermissionThenStart()
-                result.success(null)
-            } else {
+            if (previewView == null) {
                 result.error("NO_PREVIEW", "Preview not initialized", null)
+                return
             }
+            // If surface not ready yet, mark pending and return
+            if (!usingPlatformView && (!isSurfaceReady || surface == null || !(surface?.isValid ?: false))) {
+                pendingStartProcessing = true
+                result.success(null)
+                return
+            }
+            NosmaiSDK.startProcessing(previewView!!)
+            isProcessingActive = true
+            try { NosmaiSDK.setCameraFacing(isFrontCamera) } catch (_: Throwable) {}
+            try { NosmaiSDK.setMirrorX(isFrontCamera) } catch (_: Throwable) {}
+            
+            
+            ensureCameraPermissionThenStart()
+            result.success(null)
         } catch (t: Throwable) {
             Log.e(TAG, "startProcessing error", t)
             result.error("START_ERROR", t.message, null)
@@ -369,14 +460,38 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun handleStopProcessing(result: Result) {
         try {
+            cleanupInProgress = true
+            lastCleanupAtMs = System.currentTimeMillis()
+            // Prefer a soft-stop: stop camera feed first
+            try { camera2Helper?.stopCamera() } catch (_: Throwable) {}
+            camera2Helper = null
+            // Then stop SDK processing
             NosmaiSDK.stopProcessing()
             isProcessingActive = false
-            camera2Helper?.stopCamera()
-            camera2Helper = null
             result.success(null)
+            // Allow HAL/GL to settle before next start
+            Handler(Looper.getMainLooper()).postDelayed({ cleanupInProgress = false }, 700)
         } catch (t: Throwable) {
             Log.e(TAG, "stopProcessing error", t)
             result.error("STOP_ERROR", t.message, null)
+        }
+    }
+
+    private fun handleDetachCameraView(result: Result) {
+        try {
+            // Only stop camera; keep SDK GL/render surface bound to avoid tearing down EGL
+            try { camera2Helper?.cancelRetry() } catch (_: Throwable) {}
+            try { camera2Helper?.stopCamera() } catch (_: Throwable) {}
+            camera2Helper = null
+            // Mark not actively processing frames (no camera input), but do not call SDK.stopProcessing()
+            isProcessingActive = false
+            pendingStartProcessing = false
+            // Do not clear or release surface/texture here
+            surfaceReboundOnce = false
+            result.success(null)
+        } catch (t: Throwable) {
+            Log.e(TAG, "detachCameraView error", t)
+            result.success(null)
         }
     }
 
@@ -421,8 +536,12 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                             // If not active (edge case), start it now
                             try {
                                 if (!isProcessingActive && previewView != null) {
-                                    NosmaiSDK.startProcessing(previewView!!)
-                                    isProcessingActive = true
+                                    if (isSurfaceReady && surface != null && surface!!.isValid) {
+                                        NosmaiSDK.startProcessing(previewView!!)
+                                        isProcessingActive = true
+                                    } else {
+                                        pendingStartProcessing = true
+                                    }
                                 }
                             } catch (_: Throwable) {}
                             result.success(true)
@@ -542,31 +661,58 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     // --- Beauty / Color built-ins (Android NosmaiBeauty mapping) ---
     private fun handleApplySkinSmoothing(call: MethodCall, result: Result) {
+        Log.d("[FilterTest]", "Apply Smoothing")
         try {
+            // Simple check - SDK must be initialized
+            if (!isSdkInitialized) {
+                result.error("FILTER_ERROR", "SDK not initialized. Call initWithLicense first.", null)
+                return
+            }
+            
             val level = call.argument<Number>("level")?.toDouble() ?: 0.0
             // iOS uses ~0..10, Android expects 0..1
             val normalized = (level / 10.0).coerceIn(0.0, 1.0)
+            
             NosmaiBeauty.applySkinSmoothing(normalized.toFloat())
             result.success(null)
-        } catch (t: Throwable) { result.error("FILTER_ERROR", t.message, null) }
+        } catch (t: Throwable) { 
+            Log.e(TAG, "SkinSmoothing error: ${t.message}", t)
+            result.error("FILTER_ERROR", t.message, null) 
+        }
     }
 
     private fun handleApplySkinWhitening(call: MethodCall, result: Result) {
         try {
+            if (!isSdkInitialized) {
+                result.error("FILTER_ERROR", "SDK not initialized.", null)
+                return
+            }
+            
             val level = call.argument<Number>("level")?.toDouble() ?: 0.0
             val normalized = (level / 10.0).coerceIn(0.0, 1.0)
             NosmaiBeauty.applySkinWhitening(normalized.toFloat())
             result.success(null)
-        } catch (t: Throwable) { result.error("FILTER_ERROR", t.message, null) }
+        } catch (t: Throwable) { 
+            Log.e(TAG, "SkinWhitening error: ${t.message}", t)
+            result.error("FILTER_ERROR", t.message, null) 
+        }
     }
 
     private fun handleApplyFaceSlimming(call: MethodCall, result: Result) {
         try {
+            if (!isSdkInitialized) {
+                result.error("FILTER_ERROR", "SDK not initialized.", null)
+                return
+            }
+            
             val level = call.argument<Number>("level")?.toDouble() ?: 0.0
             val normalized = (level / 10.0).coerceIn(0.0, 1.0)
             NosmaiBeauty.applyFaceSlimming(normalized.toFloat())
             result.success(null)
-        } catch (t: Throwable) { result.error("FILTER_ERROR", t.message, null) }
+        } catch (t: Throwable) { 
+            Log.e(TAG, "FaceSlimming error: ${t.message}", t)
+            result.error("FILTER_ERROR", t.message, null) 
+        }
     }
 
     private fun handleApplyEyeEnlargement(call: MethodCall, result: Result) {
@@ -613,6 +759,114 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             NosmaiBeauty.applyHue(hue.toFloat())
             result.success(null)
         } catch (t: Throwable) { result.error("FILTER_ERROR", t.message, null) }
+    }
+
+    private fun handleApplyRGBFilter(call: MethodCall, result: Result) {
+        try {
+            if (!isSdkInitialized) {
+                result.error("FILTER_ERROR", "SDK not initialized.", null)
+                return
+            }
+            
+            val red = call.argument<Number>("red")?.toFloat() ?: 1.0f
+            val green = call.argument<Number>("green")?.toFloat() ?: 1.0f
+            val blue = call.argument<Number>("blue")?.toFloat() ?: 1.0f
+            
+            // Apply RGB multipliers
+            NosmaiBeauty.applyRGB(red, green, blue)
+            Log.d(TAG, "Applied RGB filter: R=$red, G=$green, B=$blue")
+            
+            result.success(null)
+        } catch (t: Throwable) {
+            Log.e(TAG, "RGB filter error: ${t.message}", t)
+            result.error("FILTER_ERROR", t.message, null)
+        }
+    }
+
+    private fun handleApplyLipstick(call: MethodCall, result: Result) {
+        try {
+            if (!isSdkInitialized) {
+                result.error("FILTER_ERROR", "SDK not initialized.", null)
+                return
+            }
+            
+            val intensity = call.argument<Number>("intensity")?.toDouble() ?: 0.0
+            val normalized = (intensity / 100.0).coerceIn(0.0, 1.0)
+            
+            NosmaiBeauty.applyLipstick(normalized.toFloat())
+            Log.d(TAG, "Applied lipstick: $normalized")
+            
+            result.success(null)
+        } catch (t: Throwable) {
+            Log.e(TAG, "Lipstick error: ${t.message}", t)
+            result.error("FILTER_ERROR", t.message, null)
+        }
+    }
+
+    private fun handleApplyBlusher(call: MethodCall, result: Result) {
+        try {
+            if (!isSdkInitialized) {
+                result.error("FILTER_ERROR", "SDK not initialized.", null)
+                return
+            }
+            
+            val intensity = call.argument<Number>("intensity")?.toDouble() ?: 0.0
+            val normalized = (intensity / 100.0).coerceIn(0.0, 1.0)
+            
+            NosmaiBeauty.applyBlusher(normalized.toFloat())
+            Log.d(TAG, "Applied blusher: $normalized")
+            
+            result.success(null)
+        } catch (t: Throwable) {
+            Log.e(TAG, "Blusher error: ${t.message}", t)
+            result.error("FILTER_ERROR", t.message, null)
+        }
+    }
+
+    private fun handleApplyMakeupBlendLevel(call: MethodCall, result: Result) {
+        try {
+            if (!isSdkInitialized) {
+                result.error("FILTER_ERROR", "SDK not initialized.", null)
+                return
+            }
+            
+            val filterName = call.argument<String>("filterName") ?: ""
+            val level = call.argument<Number>("level")?.toDouble() ?: 0.0
+            
+            // Map iOS filter names to Android methods
+            when (filterName.lowercase()) {
+                "lipstickfilter", "lipstick" -> {
+                    val normalized = (level / 100.0).coerceIn(0.0, 1.0)
+                    NosmaiBeauty.applyLipstick(normalized.toFloat())
+                    Log.d(TAG, "Applied lipstick: $normalized")
+                }
+                "blusherfilter", "blusher" -> {
+                    val normalized = (level / 100.0).coerceIn(0.0, 1.0)
+                    NosmaiBeauty.applyBlusher(normalized.toFloat())
+                    Log.d(TAG, "Applied blusher: $normalized")
+                }
+                "skinsmoothing", "smoothing" -> {
+                    val normalized = (level / 100.0).coerceIn(0.0, 1.0)
+                    NosmaiBeauty.applySkinSmoothing(normalized.toFloat())
+                    Log.d(TAG, "Applied skin smoothing: $normalized")
+                }
+                "skinwhitening", "whitening" -> {
+                    val normalized = (level / 100.0).coerceIn(0.0, 1.0)
+                    NosmaiBeauty.applySkinWhitening(normalized.toFloat())
+                    Log.d(TAG, "Applied skin whitening: $normalized")
+                }
+                else -> {
+                    Log.w(TAG, "Unknown makeup filter: $filterName")
+                    result.error("FILTER_ERROR", "Unsupported makeup filter: $filterName", null)
+                    return
+                }
+            }
+            
+            result.success(null)
+        } catch (t: Throwable) {
+            Log.e(TAG, "MakeupBlendLevel error: ${t.message}", t)
+            result.error("FILTER_ERROR", t.message, null)
+        }
     }
 
     private fun handleRemoveBuiltInBeautyFilters(result: Result) {
@@ -769,17 +1023,17 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             // Clear SDK render surface
             try { NosmaiSDK.clearRenderSurface() } catch (_: Throwable) {}
             
-            // Release surface and texture
+            // Release only the Surface; keep the TextureEntry managed by Flutter
             surface?.release()
             surface = null
             
-            // Properly release texture entry
-            val entry = textureEntry
-            textureEntry = null
-            entry?.release()
-            
             // Reset surface binding flag
             surfaceReboundOnce = false
+            isSurfaceReady = false
+            pendingStartProcessing = false
+            cleanupInProgress = true
+            lastCleanupAtMs = System.currentTimeMillis()
+            Handler(Looper.getMainLooper()).postDelayed({ cleanupInProgress = false }, 700)
             
             result.success(true)
         } catch (t: Throwable) {
@@ -791,71 +1045,116 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     // --- Photo Capture and Gallery Functions ---
     private fun handleCapturePhoto(result: Result) {
         try {
-            // We need to capture from the rendered surface
-            val surf = surface
-            val entry = textureEntry
-            
-            if (surf == null || entry == null) {
-                result.success(mapOf(
-                    "success" to false,
-                    "error" to "Surface not initialized for capture"
-                ))
+            if (usingPlatformView) {
+                val pvLocal = previewView
+                if (pvLocal == null) {
+                    result.success(mapOf("success" to false, "error" to "Preview not ready")); return
+                }
+                // 1) Try TextureView capture
+                val tv = findTextureView(pvLocal)
+                if (tv != null) {
+                    try {
+                        val bmp = tv.bitmap
+                        if (bmp != null) {
+                            Thread {
+                                try {
+                                    val baos = ByteArrayOutputStream()
+                                    bmp.compress(Bitmap.CompressFormat.JPEG, 85, baos)
+                                    val data = baos.toByteArray()
+                                    val map = hashMapOf<String, Any?>(
+                                        "success" to true,
+                                        "width" to bmp.width,
+                                        "height" to bmp.height,
+                                        "imageData" to data
+                                    )
+                                    Handler(Looper.getMainLooper()).post { result.success(map) }
+                                } catch (e: Throwable) {
+                                    Handler(Looper.getMainLooper()).post { result.success(mapOf("success" to false, "error" to e.message)) }
+                                }
+                            }.start()
+                            return
+                        }
+                    } catch (e: Throwable) { Log.w(TAG, "TextureView capture failed", e) }
+                }
+                // 2) Try SurfaceView + PixelCopy
+                val sv = findSurfaceView(pvLocal)
+                if (sv != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    try {
+                        val w = if (sv.width > 0) sv.width else (pendingSurfaceWidth ?: 720)
+                        val h = if (sv.height > 0) sv.height else (pendingSurfaceHeight ?: 1280)
+                        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                        android.view.PixelCopy.request(sv, bmp, android.view.PixelCopy.OnPixelCopyFinishedListener { copyResult ->
+                            if (copyResult == android.view.PixelCopy.SUCCESS) {
+                                Thread {
+                                    try {
+                                        val baos = ByteArrayOutputStream()
+                                        bmp.compress(Bitmap.CompressFormat.JPEG, 85, baos)
+                                        val data = baos.toByteArray()
+                                        val map = hashMapOf<String, Any?>(
+                                            "success" to true,
+                                            "width" to bmp.width,
+                                            "height" to bmp.height,
+                                            "imageData" to data
+                                        )
+                                        Handler(Looper.getMainLooper()).post { result.success(map) }
+                                    } catch (e: Throwable) {
+                                        Handler(Looper.getMainLooper()).post { result.success(mapOf("success" to false, "error" to e.message)) }
+                                    }
+                                }.start()
+                            } else {
+                                val fw = w; val fh = h
+                                captureUsingOpenGL(fw, fh, result)
+                            }
+                        }, Handler(Looper.getMainLooper()))
+                        return
+                    } catch (e: Throwable) { Log.w(TAG, "SurfaceView PixelCopy failed", e) }
+                }
+                // 3) Fallback OpenGL read
+                val w = pendingSurfaceWidth ?: pvLocal.width.takeIf { it > 0 } ?: 720
+                val h = pendingSurfaceHeight ?: pvLocal.height.takeIf { it > 0 } ?: 1280
+                captureUsingOpenGL(w, h, result)
                 return
             }
 
-            // Get dimensions
+            // Texture path
+            val surf = surface
+            val entry = textureEntry
+            if (surf == null || entry == null) {
+                result.success(mapOf("success" to false, "error" to "Surface not initialized for capture"))
+                return
+            }
             val width = pendingSurfaceWidth ?: 720
             val height = pendingSurfaceHeight ?: 1280
-            
-            // Method 1: Try to read pixels from the current rendered frame
-            Handler(Looper.getMainLooper()).post {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                 try {
-                    // Create bitmap to hold the captured image
-                    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                    
-                    // Try to capture using TextureView approach
-                    val textureView = android.view.TextureView(context)
-                    val surfaceTexture = entry.surfaceTexture()
-                    textureView.setSurfaceTexture(surfaceTexture)
-                    
-                    // Get the bitmap from TextureView
-                    val captureBitmap = textureView.getBitmap(bitmap)
-                    
-                    if (captureBitmap != null) {
-                        // Process the captured bitmap in background
-                        Thread {
-                            try {
-                                val baos = ByteArrayOutputStream()
-                                captureBitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos)
-                                val imageData = baos.toByteArray()
-                                
-                                val resultMap = HashMap<String, Any?>()
-                                resultMap["success"] = true
-                                resultMap["width"] = captureBitmap.width
-                                resultMap["height"] = captureBitmap.height
-                                resultMap["imageData"] = imageData
-                                
-                                Handler(Looper.getMainLooper()).post {
-                                    result.success(resultMap)
+                    android.view.PixelCopy.request(surf, bitmap, { copyResult ->
+                        if (copyResult == android.view.PixelCopy.SUCCESS) {
+                            Thread {
+                                try {
+                                    val baos = ByteArrayOutputStream()
+                                    bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos)
+                                    val imageData = baos.toByteArray()
+                                    val resultMap = HashMap<String, Any?>()
+                                    resultMap["success"] = true
+                                    resultMap["width"] = bitmap.width
+                                    resultMap["height"] = bitmap.height
+                                    resultMap["imageData"] = imageData
+                                    Handler(Looper.getMainLooper()).post { result.success(resultMap) }
+                                } catch (e: Throwable) {
+                                    Handler(Looper.getMainLooper()).post { result.success(mapOf("success" to false, "error" to "Failed to process image: ${e.message}")) }
                                 }
-                            } catch (e: Throwable) {
-                                Handler(Looper.getMainLooper()).post {
-                                    result.success(mapOf(
-                                        "success" to false,
-                                        "error" to "Failed to process image: ${e.message}"
-                                    ))
-                                }
-                            }
-                        }.start()
-                    } else {
-                        // Fallback: capture using OpenGL readPixels approach
-                        captureUsingOpenGL(width, height, result)
-                    }
+                            }.start()
+                        } else {
+                            captureUsingOpenGL(width, height, result)
+                        }
+                    }, Handler(Looper.getMainLooper()))
                 } catch (e: Throwable) {
-                    Log.e(TAG, "Error capturing photo", e)
-                    // Try fallback method
+                    Log.e(TAG, "PixelCopy error", e)
                     captureUsingOpenGL(width, height, result)
                 }
+            } else {
+                captureUsingOpenGL(width, height, result)
             }
         } catch (t: Throwable) {
             Log.e(TAG, "capturePhoto error", t)
@@ -922,6 +1221,31 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 "error" to "Failed to capture using OpenGL: ${t.message}"
             ))
         }
+    }
+
+    // Helpers to locate preview child views in PlatformView mode
+    private fun findTextureView(root: android.view.View): android.view.TextureView? {
+        if (root is android.view.TextureView) return root
+        if (root is android.view.ViewGroup) {
+            for (i in 0 until root.childCount) {
+                val child = root.getChildAt(i)
+                val found = findTextureView(child)
+                if (found != null) return found
+            }
+        }
+        return null
+    }
+
+    private fun findSurfaceView(root: android.view.View): android.view.SurfaceView? {
+        if (root is android.view.SurfaceView) return root
+        if (root is android.view.ViewGroup) {
+            for (i in 0 until root.childCount) {
+                val child = root.getChildAt(i)
+                val found = findSurfaceView(child)
+                if (found != null) return found
+            }
+        }
+        return null
     }
 
     private fun handleSaveImageToGallery(call: MethodCall, result: Result) {
@@ -1105,6 +1429,8 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 // Clean up SDK resources while preserving initialization state
                 // Similar to iOS, we don't set isInitialized to false
                 try {
+                    cleanupInProgress = true
+                    lastCleanupAtMs = System.currentTimeMillis()
                     // Stop any active processing
                     if (isProcessingActive) {
                         NosmaiSDK.stopProcessing()
@@ -1145,9 +1471,24 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             // Don't clear filter cache on every cleanup - only on full disposal
             
             result.success(null)
+            Handler(Looper.getMainLooper()).postDelayed({ cleanupInProgress = false }, 700)
         } catch (t: Throwable) {
             Log.e(TAG, "Cleanup error", t)
             result.error("CLEANUP_ERROR", t.message, null)
+        }
+    }
+
+    private fun attemptDeferredStart() {
+        if (pendingStartProcessing && !isProcessingActive && isSurfaceReady && surface?.isValid == true && previewView != null && !cleanupInProgress) {
+            try {
+                NosmaiSDK.startProcessing(previewView!!)
+                isProcessingActive = true
+                ensureCameraPermissionThenStart()
+            } catch (e: Throwable) {
+                Log.e(TAG, "attemptDeferredStart error", e)
+            } finally {
+                pendingStartProcessing = false
+            }
         }
     }
     
@@ -1221,6 +1562,15 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                             NosmaiSDK.setRenderSurface(s, w, h)
                             NosmaiSDK.setMirrorX(isFrontCamera)
                             surfaceReboundOnce = false
+                            isSurfaceReady = true
+                            if (pendingStartProcessing && !isProcessingActive && previewView != null) {
+                                try {
+                                    NosmaiSDK.startProcessing(previewView!!)
+                                    isProcessingActive = true
+                                    ensureCameraPermissionThenStart()
+                                } catch (_: Throwable) {}
+                                pendingStartProcessing = false
+                            }
                         }
                     }
                     result.success(null)
@@ -1436,7 +1786,9 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private fun ensureCameraPermissionThenStart() {
         val act = activity ?: return
         if (ContextCompat.checkSelfPermission(act, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            startCamera()
+            if (isProcessingActive && (usingPlatformView || (isSurfaceReady && !cleanupInProgress))) {
+                startCamera()
+            }
         } else {
             activityBinding?.addRequestPermissionsResultListener(this)
             ActivityCompat.requestPermissions(act, arrayOf(Manifest.permission.CAMERA), REQ_CAMERA)
@@ -1468,10 +1820,26 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             ) {
                 if (y == null || u == null || v == null) return
 
+                if (usingPlatformView) {
+                    // Render directly into preview view
+                    pv.processYuvFrame(
+                        y, u, v,
+                        width, height,
+                        yStride, uStride, vStride,
+                        uPixelStride, vPixelStride,
+                        calculateFrameRotation(helper.sensorOrientation, helper.isFrontCamera)
+                    )
+                    pv.requestRenderUpdate()
+                    return
+                }
+
+                // Texture-based path requires a valid external surface
+                val s = surface
+                if (s == null || !s.isValid) return
                 if (!surfaceReboundOnce) {
                     try {
                         textureEntry?.surfaceTexture()?.setDefaultBufferSize(width, height)
-                        surface?.let { NosmaiSDK.setRenderSurface(it, width, height) }
+                        NosmaiSDK.setRenderSurface(s, width, height)
                         NosmaiSDK.setMirrorX(helper.isFrontCamera)
                         surfaceReboundOnce = true
                     } catch (_: Throwable) {}
@@ -1497,7 +1865,9 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray): Boolean {
         if (requestCode == REQ_CAMERA) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCamera()
+                if (isProcessingActive && (usingPlatformView || (isSurfaceReady && !cleanupInProgress))) {
+                    startCamera()
+                }
             } else {
                 Log.e(TAG, "Camera permission denied")
             }

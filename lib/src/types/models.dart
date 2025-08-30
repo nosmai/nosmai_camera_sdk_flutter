@@ -1,7 +1,6 @@
 /// Nosmai Flutter Plugin Data Models
 ///
 /// This file contains all the data model classes used by the Nosmai Flutter plugin.
-library;
 
 import 'dart:typed_data';
 import 'enums.dart';

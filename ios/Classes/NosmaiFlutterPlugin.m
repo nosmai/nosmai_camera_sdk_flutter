@@ -109,6 +109,12 @@
   else if ([@"applyMakeupBlendLevel" isEqualToString:method]) {
     [self handleApplyMakeupBlendLevel:call result:result];
   }
+  else if ([@"applyLipstick" isEqualToString:method]) {
+    [self handleApplyLipstick:call result:result];
+  }
+  else if ([@"applyBlusher" isEqualToString:method]) {
+    [self handleApplyBlusher:call result:result];
+  }
   else if ([@"applyGrayscaleFilter" isEqualToString:method]) {
     [self handleApplyGrayscaleFilter:call result:result];
   }
@@ -670,6 +676,60 @@
   
   @try {
     [[NosmaiCore shared].effects applyMakeupBlendLevel:filterName level:level.floatValue];
+    result(nil);
+  } @catch (NSException *exception) {
+    result([FlutterError errorWithCode:@"FILTER_ERROR"
+                               message:exception.reason
+                               details:exception.userInfo]);
+  }
+}
+
+- (void)handleApplyLipstick:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK must be initialized before applying filters"
+                               details:nil]);
+    return;
+  }
+  
+  NSNumber* intensity = call.arguments[@"intensity"];
+  
+  if (!intensity) {
+    result([FlutterError errorWithCode:@"INVALID_ARGUMENTS"
+                               message:@"Intensity is required"
+                               details:nil]);
+    return;
+  }
+  
+  @try {
+    [[NosmaiCore shared].effects applyMakeupBlendLevel:@"lipstick" level:intensity.floatValue];
+    result(nil);
+  } @catch (NSException *exception) {
+    result([FlutterError errorWithCode:@"FILTER_ERROR"
+                               message:exception.reason
+                               details:exception.userInfo]);
+  }
+}
+
+- (void)handleApplyBlusher:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK must be initialized before applying filters"
+                               details:nil]);
+    return;
+  }
+  
+  NSNumber* intensity = call.arguments[@"intensity"];
+  
+  if (!intensity) {
+    result([FlutterError errorWithCode:@"INVALID_ARGUMENTS"
+                               message:@"Intensity is required"
+                               details:nil]);
+    return;
+  }
+  
+  @try {
+    [[NosmaiCore shared].effects applyMakeupBlendLevel:@"blusher" level:intensity.floatValue];
     result(nil);
   } @catch (NSException *exception) {
     result([FlutterError errorWithCode:@"FILTER_ERROR"

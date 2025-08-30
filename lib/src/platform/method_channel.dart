@@ -4,6 +4,7 @@ import '../types/enums.dart';
 import '../types/models.dart';
 import '../types/errors.dart';
 import 'platform_interface.dart';
+import '../core/nosmai_api.dart';
 
 /// Internal camera state notifier for communication between platform and widgets
 class CameraStateNotifierImpl {
@@ -113,17 +114,26 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
       case 'onError':
         final Map<String, dynamic> args =
             Map<String, dynamic>.from(call.arguments);
-        NosmaiError.fromMap(args);
-        // This will be handled by the main NosmaiFlutter class
+        final err = NosmaiError.fromMap(args);
+        NosmaiFlutter.dispatchNativeError(err);
         break;
       case 'onDownloadProgress':
         final Map<String, dynamic> args =
             Map<String, dynamic>.from(call.arguments);
-        NosmaiDownloadProgress.fromMap(args);
-        // This will be handled by the main NosmaiFlutter class
+        final progress = NosmaiDownloadProgress.fromMap(args);
+        NosmaiFlutter.dispatchNativeDownloadProgress(progress);
         break;
       case 'onRecordingProgress':
-        // This will be handled by the main NosmaiFlutter class
+        try {
+          final Map<String, dynamic> args =
+              Map<String, dynamic>.from(call.arguments);
+          final duration = (args['duration'] as num?)?.toDouble();
+          if (duration != null) {
+            NosmaiFlutter.dispatchNativeRecordingProgress(duration);
+          }
+        } catch (_) {
+          // ignore malformed callback
+        }
         break;
       case 'onStateChanged':
         // Handle SDK state changes
@@ -464,6 +474,28 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         'red': red,
         'green': green,
         'blue': blue,
+      });
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> applyLipstick(double intensity) async {
+    try {
+      await methodChannel.invokeMethod('applyLipstick', {
+        'intensity': intensity,
+      });
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> applyBlusher(double intensity) async {
+    try {
+      await methodChannel.invokeMethod('applyBlusher', {
+        'intensity': intensity,
       });
     } catch (e) {
       rethrow;

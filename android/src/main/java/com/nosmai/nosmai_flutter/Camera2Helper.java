@@ -63,6 +63,12 @@ public class Camera2Helper {
     private Surface previewSurface;
     private int targetWidth = 1280;
     private int targetHeight = 720;
+    private int retryCount = 0;
+    private static final int MAX_RETRIES = 2;
+    private long openSeq = 0;
+    private boolean retryScheduled = false;
+    private boolean stopped = false;
+    private Runnable retryRunnable;
 
     public Camera2Helper(Context context, boolean isFront) {
         this.context = context.getApplicationContext();
@@ -86,8 +92,21 @@ public class Camera2Helper {
         this.targetHeight = height;
     }
 
-    public void startCamera() { startBg(); openCamera(); }
-    public void stopCamera() { closeCamera(); stopBg(); }
+    public void startCamera() { stopped = false; startBg(); openCamera(); }
+    public void stopCamera() {
+        stopped = true;
+        cancelRetry();
+        closeCamera();
+        stopBg();
+    }
+
+    public void cancelRetry() {
+        retryScheduled = false;
+        if (bgHandler != null && retryRunnable != null) {
+            bgHandler.removeCallbacks(retryRunnable);
+        }
+        retryRunnable = null;
+    }
 
     private void startBg() {
         bgThread = new HandlerThread("CameraBg");
@@ -111,6 +130,8 @@ public class Camera2Helper {
         }
         CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
         try {
+            retryScheduled = false;
+            final long seq = ++openSeq;
             String cameraId = chooseCamera(manager);
             if (cameraId == null) { Log.e(TAG, "No camera found"); return; }
             CameraCharacteristics chars = manager.getCameraCharacteristics(cameraId);
@@ -126,9 +147,46 @@ public class Camera2Helper {
             if (!cameraLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
                 throw new RuntimeException("Timeout locking camera open");
             }
-            manager.openCamera(cameraId, stateCallback, bgHandler);
+            manager.openCamera(cameraId, new CameraDevice.StateCallback() {
+                @Override public void onOpened(@NonNull CameraDevice camera) {
+                    // Hold the lock while creating session to avoid races with close
+                    if (seq != openSeq) {
+                        Log.w(TAG, "Stale onOpened ignored; seq=" + seq + ", current=" + openSeq);
+                        camera.close();
+                        cameraLock.release();
+                        return;
+                    }
+                    if (stopped) {
+                        camera.close();
+                        cameraLock.release();
+                        return;
+                    }
+                    cameraDevice = camera;
+                    try {
+                        createSession();
+                    } finally {
+                        cameraLock.release();
+                    }
+                }
+                @Override public void onDisconnected(@NonNull CameraDevice camera) {
+                    cameraLock.release();
+                    camera.close();
+                    if (seq != openSeq) return;
+                    cameraDevice = null;
+                    scheduleRetry();
+                }
+                @Override public void onError(@NonNull CameraDevice camera, int error) {
+                    cameraLock.release();
+                    camera.close();
+                    if (seq != openSeq) return;
+                    cameraDevice = null;
+                    Log.e(TAG, "camera error: " + error);
+                    scheduleRetry();
+                }
+            }, bgHandler);
         } catch (Exception e) {
             Log.e(TAG, "openCamera failed", e);
+            scheduleRetry();
         }
     }
 
@@ -187,24 +245,7 @@ public class Camera2Helper {
         }
     }
 
-    private final CameraDevice.StateCallback stateCallback = new CameraDevice.StateCallback() {
-        @Override public void onOpened(@NonNull CameraDevice camera) {
-            cameraLock.release();
-            cameraDevice = camera;
-            createSession();
-        }
-        @Override public void onDisconnected(@NonNull CameraDevice camera) {
-            cameraLock.release();
-            camera.close();
-            cameraDevice = null;
-        }
-        @Override public void onError(@NonNull CameraDevice camera, int error) {
-            cameraLock.release();
-            camera.close();
-            cameraDevice = null;
-            Log.e(TAG, "camera error: " + error);
-        }
-    };
+    // per-open callbacks are created inline in openCamera()
 
     private void createSession() {
         try {
@@ -225,6 +266,7 @@ public class Camera2Helper {
                         try { req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(15, 30)); } catch (Exception ignored) {}
                         try { req.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE); } catch (Exception ignored) {}
                         session.setRepeatingRequest(req.build(), null, bgHandler);
+                        retryCount = 0;
                     } catch (CameraAccessException e) {
                         Log.e(TAG, "setRepeatingRequest failed", e);
                         if (cameraDevice != null) {
@@ -237,16 +279,22 @@ public class Camera2Helper {
                                 Log.i(TAG, "Fallback to simple request succeeded");
                             } catch (Exception e2) {
                                 Log.e(TAG, "Fallback also failed", e2);
+                                scheduleRetry();
                             }
                         }
                     }
                 }
                 @Override public void onConfigureFailed(@NonNull CameraCaptureSession session) {
                     Log.e(TAG, "configureFailed");
+                    scheduleRetry();
                 }
             }, bgHandler);
+        } catch (IllegalStateException e) {
+            Log.e(TAG, "createSession illegal state (closed device)", e);
+            scheduleRetry();
         } catch (CameraAccessException e) {
             Log.e(TAG, "createSession failed", e);
+            scheduleRetry();
         }
     }
 
@@ -281,5 +329,18 @@ public class Camera2Helper {
             }
         }
     };
-}
 
+    private void scheduleRetry() {
+        if (stopped || retryCount >= MAX_RETRIES || retryScheduled) return;
+        retryCount++;
+        retryScheduled = true;
+        Log.e(TAG, "Scheduling camera reopen, retry=" + retryCount);
+        closeCamera();
+        if (bgHandler != null) {
+            retryRunnable = new Runnable() {
+                @Override public void run() { retryScheduled = false; openCamera(); }
+            };
+            bgHandler.postDelayed(retryRunnable, 200);
+        }
+    }
+}

@@ -1,7 +1,6 @@
 /// Nosmai Flutter Plugin Error Types
 ///
 /// This file contains all the error types and error handling utilities.
-library;
 
 import 'enums.dart';
 

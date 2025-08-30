@@ -1,7 +1,6 @@
 /// Nosmai Flutter Plugin Core API
 ///
 /// This file contains the main NosmaiFlutter class and core API methods.
-library;
 
 import 'dart:async';
 import 'package:flutter/services.dart';
@@ -72,6 +71,27 @@ class NosmaiFlutter {
   Stream<double> get onRecordingProgress {
     _recordingProgressController ??= StreamController<double>.broadcast();
     return _recordingProgressController!.stream;
+  }
+
+  // Internal dispatchers for native callbacks
+  static void dispatchNativeError(NosmaiError error) {
+    final inst = NosmaiFlutter.instance;
+    inst._errorController ??= StreamController<NosmaiError>.broadcast();
+    inst._errorController!.add(error);
+  }
+
+  static void dispatchNativeDownloadProgress(NosmaiDownloadProgress progress) {
+    final inst = NosmaiFlutter.instance;
+    inst._downloadProgressController ??=
+        StreamController<NosmaiDownloadProgress>.broadcast();
+    inst._downloadProgressController!.add(progress);
+  }
+
+  static void dispatchNativeRecordingProgress(double durationSeconds) {
+    final inst = NosmaiFlutter.instance;
+    inst._recordingProgressController ??=
+        StreamController<double>.broadcast();
+    inst._recordingProgressController!.add(durationSeconds);
   }
 
   /// Whether the SDK is initialized
@@ -587,6 +607,18 @@ class NosmaiFlutter {
     _checkInitialized();
     await NosmaiFlutterPlatform.instance
         .applyRGBFilter(red: red, green: green, blue: blue);
+  }
+
+  /// Apply lipstick makeup
+  Future<void> applyLipstick(double intensity) async {
+    _checkInitialized();
+    await NosmaiFlutterPlatform.instance.applyLipstick(intensity);
+  }
+
+  /// Apply blusher makeup
+  Future<void> applyBlusher(double intensity) async {
+    _checkInitialized();
+    await NosmaiFlutterPlatform.instance.applyBlusher(intensity);
   }
 
   /// Apply sharpening filter

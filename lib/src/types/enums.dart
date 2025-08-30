@@ -1,7 +1,6 @@
 /// Nosmai Flutter Plugin Enums
 ///
 /// This file contains all the enumeration types used by the Nosmai Flutter plugin.
-library;
 
 /// Camera position enumeration
 enum NosmaiCameraPosition {

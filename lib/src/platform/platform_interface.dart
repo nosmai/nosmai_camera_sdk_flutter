@@ -166,6 +166,14 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
     throw UnimplementedError('applyRGBFilter() has not been implemented.');
   }
 
+  Future<void> applyLipstick(double intensity) {
+    throw UnimplementedError('applyLipstick() has not been implemented.');
+  }
+
+  Future<void> applyBlusher(double intensity) {
+    throw UnimplementedError('applyBlusher() has not been implemented.');
+  }
+
   Future<void> applySkinSmoothing(double level) {
     throw UnimplementedError('applySkinSmoothing() has not been implemented.');
   }
