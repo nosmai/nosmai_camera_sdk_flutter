@@ -1,4 +1,4 @@
-## 1.0.4+3
+## 2.0.0
 - Fixed Android crashing issue
 - Resolved iOS video recording issue
 
