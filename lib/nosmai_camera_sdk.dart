@@ -2,6 +2,7 @@
 ///
 /// A Flutter plugin for integrating Nosmai SDK with advanced camera filters,
 /// beauty effects, and real-time video processing capabilities.
+library;
 
 // Export all public APIs
 export 'src/types/enums.dart';

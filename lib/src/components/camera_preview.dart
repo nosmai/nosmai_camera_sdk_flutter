@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../nosmai_camera_sdk.dart';
-import '../platform/platform_interface.dart';
 
 class NosmaiCameraPreview extends StatefulWidget {
   const NosmaiCameraPreview({
@@ -58,7 +57,6 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
   late final NosmaiFlutter _nosmaiFlutter;
   static int _viewCounter = 0;
   late final String _viewKey;
-  int? _androidTextureId;
 
   @override
   void initState() {

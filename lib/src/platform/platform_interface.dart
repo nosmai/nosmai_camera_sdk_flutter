@@ -143,13 +143,11 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
   Future<void> detachCameraView() {
     throw UnimplementedError('detachCameraView() has not been implemented.');
   }
-  
+
   /// Reinitialize the preview (useful for navigation recovery)
   Future<void> reinitializePreview() {
     throw UnimplementedError('reinitializePreview() has not been implemented.');
   }
-
-
 
   // Built-in Filter Methods
   Future<void> applyBrightnessFilter(double brightness) {
@@ -277,11 +275,13 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
   // Android Texture-based preview helpers (no-ops on iOS)
   /// Create a native SurfaceTexture and return its textureId (Android only)
   Future<int?> createPreviewTexture({double? width, double? height}) {
-    throw UnimplementedError('createPreviewTexture() has not been implemented.');
+    throw UnimplementedError(
+        'createPreviewTexture() has not been implemented.');
   }
 
   /// Bind the Surface from the given textureId to the SDK renderer (Android only)
-  Future<bool> setRenderSurface(int textureId, {required double width, required double height}) {
+  Future<bool> setRenderSurface(int textureId,
+      {required double width, required double height}) {
     throw UnimplementedError('setRenderSurface() has not been implemented.');
   }
 
