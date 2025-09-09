@@ -36,7 +36,6 @@ import android.os.Build
 import android.os.Environment
 import java.io.IOException
 
-// Nosmai Android SDK imports (from bundled AAR)
 import com.nosmai.effect.api.NosmaiSDK
 import com.nosmai.effect.api.NosmaiBeauty
 import com.nosmai.effect.NosmaiEffects
@@ -52,7 +51,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private var pendingLicenseKey: String? = null
     private var isSdkInitialized = false
 
-    // Texture/surface
     private var textureEntry: TextureRegistry.SurfaceTextureEntry? = null
     private var surface: Surface? = null
     private var pendingSurfaceWidth: Int? = null
@@ -60,7 +58,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private var isSurfaceReady: Boolean = false
     private var pendingStartProcessing: Boolean = false
 
-    // Hidden preview (ensures GL context prepared for some engines)
     private var previewView: NosmaiPreviewView? = null
     private var camera2Helper: Camera2Helper? = null
     private val REQ_CAMERA = 2001
@@ -85,16 +82,13 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, CHANNEL)
         channel.setMethodCallHandler(this)
 
-        // Register Android platform view for preview (avoids Flutter Texture + EGL races)
         flutterPluginBinding.platformViewRegistry.registerViewFactory(
             "nosmai_camera_preview",
             object : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
                 override fun create(context: Context?, viewId: Int, args: Any?): PlatformView {
                     val ctx = context ?: this@NosmaiFlutterPlugin.context
                     val container = android.widget.FrameLayout(ctx)
-                    // Create or reuse preview view
                     val pv = NosmaiPreviewView(ctx)
-                    // Attach to container
                     container.addView(
                         pv,
                         android.widget.FrameLayout.LayoutParams(
@@ -102,14 +96,12 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                             android.widget.FrameLayout.LayoutParams.MATCH_PARENT
                         )
                     )
-                    // Point plugin to this visible preview view
                     previewView = pv
                     usingPlatformView = true
                     try { attemptDeferredStart() } catch (_: Throwable) {}
                     return object : PlatformView {
                         override fun getView(): android.view.View = container
                         override fun dispose() {
-                            // Do not stop SDK here; detachCameraView handles camera stop
                             try { container.removeAllViews() } catch (_: Throwable) {}
                             usingPlatformView = false
                         }
@@ -121,10 +113,8 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
-        // Release texture & surface
         try { surface?.release() } catch (_: Throwable) {}
         surface = null
-        // Do not force-release texture entry; Flutter owns the lifecycle
         isSurfaceReady = false
     }
 
@@ -147,7 +137,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             "stopRecording" -> handleStopRecording(result)
             "isRecording" -> result.success(isRecording)
             "getCurrentRecordingDuration" -> result.success(getCurrentRecordingDurationSeconds())
-            // Beauty / Color built-ins
             "applySkinSmoothing" -> handleApplySkinSmoothing(call, result)
             "applySkinWhitening" -> handleApplySkinWhitening(call, result)
             "applyFaceSlimming" -> handleApplyFaceSlimming(call, result)
@@ -161,16 +150,13 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             "applyBlusher" -> handleApplyBlusher(call, result)
             "applyMakeupBlendLevel" -> handleApplyMakeupBlendLevel(call, result)
             "removeBuiltInFilters" -> handleRemoveBuiltInBeautyFilters(result)
-            // Cloud filters
             "isCloudFilterEnabled" -> handleIsCloudFilterEnabled(result)
             "getCloudFilters" -> handleGetCloudFilters(result)
             "downloadCloudFilter" -> handleDownloadCloudFilter(call, result)
             "getFilters" -> handleGetFilters(result)
-            // Photo capture and gallery functions
             "capturePhoto" -> handleCapturePhoto(result)
             "saveImageToGallery" -> handleSaveImageToGallery(call, result)
             "saveVideoToGallery" -> handleSaveVideoToGallery(call, result)
-            // SDK cleanup and management
             "cleanup" -> handleCleanup(result)
             "clearFilterCache" -> handleClearFilterCache(result)
             "reinitializePreview" -> handleReinitializePreview(result)
@@ -198,11 +184,9 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 val name = File(assetPath).nameWithoutExtension
                 val displayName = toTitleCase(name)
 
-                // Copy asset to a real file path under cache (once)
                 val cachedFile = ensureAssetCached(assetPath)
                 val fileSize = if (cachedFile != null && cachedFile.exists()) cachedFile.length().toInt() else 0
 
-                // Extract filterType/display/description from .nosmai manifest via SDK internal native
                 val (ftype, disp, desc, hasPreview) = extractManifestFieldsFromNosmai(name)
 
                 val map = HashMap<String, Any?>()
@@ -217,11 +201,9 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 map["isDownloaded"] = true
                 map["isFree"] = true
 
-                // Optional preview via embedded preview extractor
                 val previewB64 = tryExtractPreviewBase64(name)
                 if (!previewB64.isNullOrBlank()) {
                     map["previewImageBase64"] = previewB64
-                    // Also set previewUrl for consistency with iOS
                     map["previewUrl"] = "data:image/jpeg;base64,$previewB64"
                 }
 
@@ -235,10 +217,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         }
     }
 
-    // Remove previous scanLocalFiltersFromEngine attempts; we now directly use NosmaiFilterManager
-
-    // Removed engine type map helper as we now rely on NosmaiFilterManager grouping
-
     // --- Apply Effect (.nosmai) ---
     private fun handleApplyEffect(call: MethodCall, result: Result) {
         val effectPathArg = call.argument<String>("effectPath")
@@ -248,7 +226,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         }
 
         try {
-            // Resolve: if it's not an absolute existing file, treat as asset or name
             val file = resolveEffectToFile(effectPathArg)
             if (file == null || !file.exists()) {
                 Log.w(TAG, "Effect file not found for: $effectPathArg")
@@ -256,7 +233,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 return
             }
 
-            // Prefer direct SDK path-based application
             NosmaiEffects.applyEffect(file.absolutePath)
             result.success(true)
         } catch (t: Throwable) {
@@ -286,7 +262,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private fun initializeSdk(act: Activity, key: String) {
         if (isSdkInitialized) return
         NosmaiSDK.initialize(act, key)
-        // Prepare a tiny hidden preview view to ensure GL context is created on some devices
         if (previewView == null) previewView = NosmaiPreviewView(act)
         val root = act.findViewById<ViewGroup>(android.R.id.content)
         if (previewView?.parent == null) {
@@ -294,10 +269,8 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             root.addView(previewView, lp)
             previewView?.alpha = 0f
         }
-        // Default mirror (front camera UX)
-        try { NosmaiSDK.setMirrorX(true) } catch (_: Throwable) {}
+        try { NosmaiSDK.setMirrorX(isFrontCamera) } catch (_: Throwable) {}
         
-        // 🎯 CRITICAL FIX: Initialize pipeline to set GLView for beauty filters
         try {
             previewView?.initializePipeline()
             Log.i(TAG, "✅ Pipeline initialized - GLView set for beauty filters")
@@ -308,13 +281,12 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         isSdkInitialized = true
         
         
-        // Bind any pending surface
         try {
             val w = pendingSurfaceWidth
             val h = pendingSurfaceHeight
             if (surface != null && w != null && h != null) {
                 NosmaiSDK.setRenderSurface(surface!!, w, h)
-                NosmaiSDK.setMirrorX(true)
+                NosmaiSDK.setMirrorX(isFrontCamera)
                 pendingSurfaceWidth = null
                 pendingSurfaceHeight = null
                 isSurfaceReady = true
@@ -331,10 +303,8 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     }
     
 
-    // --- Texture/Surface helpers ---
     private fun handleCreateTexture(result: Result) {
         try {
-            // Always create a fresh texture entry; let Flutter dispose old ones
             textureEntry = textures.createSurfaceTexture()
             surfaceReboundOnce = false
             isSurfaceReady = false
@@ -365,7 +335,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             
             if (isSdkInitialized) {
                 NosmaiSDK.setRenderSurface(surface!!, w, h)
-                try { NosmaiSDK.setMirrorX(true) } catch (_: Throwable) {}
+                try { NosmaiSDK.setMirrorX(isFrontCamera) } catch (_: Throwable) {}
                 isSurfaceReady = true
                 if (pendingStartProcessing && !isProcessingActive) {
                     try {
@@ -379,7 +349,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 }
                 result.success(true)
             } else {
-                // Defer until init
                 pendingSurfaceWidth = w
                 pendingSurfaceHeight = h
                 isSurfaceReady = true
@@ -401,8 +370,10 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         try {
             val pos = call.argument<String>("position") ?: "front"
             isFrontCamera = (pos == "front")
+            Log.d(TAG, "ConfigureCamera: position=$pos, isFrontCamera=$isFrontCamera")
             try { NosmaiSDK.setCameraFacing(isFrontCamera) } catch (_: Throwable) {}
             try { NosmaiSDK.setMirrorX(isFrontCamera) } catch (_: Throwable) {}
+            Log.d(TAG, "SetMirrorX called with: $isFrontCamera")
             result.success(null)
         } catch (t: Throwable) {
             Log.e(TAG, "configureCamera error", t)
@@ -412,7 +383,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun handleStartProcessing(result: Result) {
         try {
-            // If cleanup is still in progress, defer start to avoid EGL/camera races
             val now = System.currentTimeMillis()
             if (cleanupInProgress || (now - lastCleanupAtMs) < 700) {
                 pendingStartProcessing = true
@@ -423,7 +393,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 result.success(null)
                 return
             }
-            // Ensure preview view exists
             val act = activity
             if (act != null && previewView == null) {
                 previewView = NosmaiPreviewView(act)
@@ -438,7 +407,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 result.error("NO_PREVIEW", "Preview not initialized", null)
                 return
             }
-            // If surface not ready yet, mark pending and return
             if (!usingPlatformView && (!isSurfaceReady || surface == null || !(surface?.isValid ?: false))) {
                 pendingStartProcessing = true
                 result.success(null)
@@ -462,15 +430,12 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         try {
             cleanupInProgress = true
             lastCleanupAtMs = System.currentTimeMillis()
-            // Prefer a soft-stop: stop camera feed first
             try { camera2Helper?.stopCamera() } catch (_: Throwable) {}
             camera2Helper = null
-            // Then stop SDK processing
             NosmaiSDK.stopProcessing()
             isProcessingActive = false
             result.success(null)
-            // Allow HAL/GL to settle before next start
-            Handler(Looper.getMainLooper()).postDelayed({ cleanupInProgress = false }, 700)
+            Handler(Looper.getMainLooper()).postDelayed({ cleanupInProgress = false }, 400)
         } catch (t: Throwable) {
             Log.e(TAG, "stopProcessing error", t)
             result.error("STOP_ERROR", t.message, null)
@@ -479,14 +444,11 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun handleDetachCameraView(result: Result) {
         try {
-            // Only stop camera; keep SDK GL/render surface bound to avoid tearing down EGL
             try { camera2Helper?.cancelRetry() } catch (_: Throwable) {}
             try { camera2Helper?.stopCamera() } catch (_: Throwable) {}
             camera2Helper = null
-            // Mark not actively processing frames (no camera input), but do not call SDK.stopProcessing()
             isProcessingActive = false
             pendingStartProcessing = false
-            // Do not clear or release surface/texture here
             surfaceReboundOnce = false
             result.success(null)
         } catch (t: Throwable) {
@@ -514,26 +476,22 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
             act.runOnUiThread {
                 try {
-                    // Toggle target facing
                     isFrontCamera = !isFrontCamera
 
-                    // Stop existing camera feed to avoid races; keep GL/render surface intact
                     try { camera2Helper?.stopCamera() } catch (_: Throwable) {}
                     camera2Helper = null
 
-                    // Ensure subsequent frame pipeline rebinds to new size once
                     surfaceReboundOnce = false
 
-                    // Apply facing to SDK immediately (mirror will be set on first frame to avoid flicker)
-                    try { NosmaiSDK.setCameraFacing(isFrontCamera) } catch (_: Throwable) {}
+                    try { 
+                        NosmaiSDK.setCameraFacing(isFrontCamera)
+                        NosmaiSDK.setMirrorX(isFrontCamera)
+                    } catch (_: Throwable) {}
 
-                    // Give camera HAL a brief moment to release before reopening
                     Handler(Looper.getMainLooper()).postDelayed({
                         try {
                             camera2Helper = Camera2Helper(act, isFrontCamera)
                             ensureCameraPermissionThenStart()
-                            // If processing was already active, do not restart here; surface will rebind on first frame
-                            // If not active (edge case), start it now
                             try {
                                 if (!isProcessingActive && previewView != null) {
                                     if (isSurfaceReady && surface != null && surface!!.isValid) {
@@ -567,7 +525,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun handleRemoveAllFilters(result: Result) {
         try {
-            // Remove any applied .nosmai effect (single active effect model)
             NosmaiEffects.removeEffect()
             result.success(null)
         } catch (t: Throwable) {
@@ -588,7 +545,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 result.success(false)
                 return
             }
-            // Prepare output file in app cache (Flutter can save to gallery later)
             val outDir = File(context.cacheDir, "NosmaiRecordings")
             if (!outDir.exists()) outDir.mkdirs()
             val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
@@ -659,18 +615,15 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         } else 0.0
     }
 
-    // --- Beauty / Color built-ins (Android NosmaiBeauty mapping) ---
     private fun handleApplySkinSmoothing(call: MethodCall, result: Result) {
         Log.d("[FilterTest]", "Apply Smoothing")
         try {
-            // Simple check - SDK must be initialized
             if (!isSdkInitialized) {
                 result.error("FILTER_ERROR", "SDK not initialized. Call initWithLicense first.", null)
                 return
             }
             
             val level = call.argument<Number>("level")?.toDouble() ?: 0.0
-            // iOS uses ~0..10, Android expects 0..1
             val normalized = (level / 10.0).coerceIn(0.0, 1.0)
             
             NosmaiBeauty.applySkinSmoothing(normalized.toFloat())
@@ -736,7 +689,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private fun handleApplyBrightness(call: MethodCall, result: Result) {
         try {
             val brightness = call.argument<Number>("brightness")?.toDouble() ?: 0.0
-            // iOS uses -1.0..+1.0; clamp for Android
             val clamped = brightness.coerceIn(-1.0, 1.0)
             NosmaiBeauty.applyBrightness(clamped.toFloat())
             result.success(null)
@@ -746,7 +698,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private fun handleApplyContrast(call: MethodCall, result: Result) {
         try {
             val contrast = call.argument<Number>("contrast")?.toDouble() ?: 1.0
-            // iOS uses 0.0..2.0 typical; clamp for parity
             val clamped = contrast.coerceIn(0.0, 2.0)
             NosmaiBeauty.applyContrast(clamped.toFloat())
             result.success(null)
@@ -772,7 +723,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             val green = call.argument<Number>("green")?.toFloat() ?: 1.0f
             val blue = call.argument<Number>("blue")?.toFloat() ?: 1.0f
             
-            // Apply RGB multipliers
             NosmaiBeauty.applyRGB(red, green, blue)
             Log.d(TAG, "Applied RGB filter: R=$red, G=$green, B=$blue")
             
@@ -833,7 +783,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             val filterName = call.argument<String>("filterName") ?: ""
             val level = call.argument<Number>("level")?.toDouble() ?: 0.0
             
-            // Map iOS filter names to Android methods
             when (filterName.lowercase()) {
                 "lipstickfilter", "lipstick" -> {
                     val normalized = (level / 100.0).coerceIn(0.0, 1.0)
@@ -876,7 +825,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         } catch (t: Throwable) { result.error("FILTER_ERROR", t.message, null) }
     }
 
-    // --- Cloud Filters ---
     private fun handleIsCloudFilterEnabled(result: Result) {
         try {
             result.success(NosmaiCloud.isEnabled())
@@ -916,11 +864,9 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 m["fileSize"] = fileSize
                 m["isFree"] = true
                 
-                // Include path for downloaded filters
                 if (downloaded && localPath.isNotBlank()) {
                     m["path"] = localPath
                     m["localPath"] = localPath
-                    // Try preview extract for downloaded
                     try {
                         val bmp = com.nosmai.effect.NosmaiFilterManager.loadPreviewImageForFilter(localPath)
                         if (bmp != null) {
@@ -929,10 +875,9 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                     } catch (_: Throwable) {}
                 }
                 
-                // ALWAYS include thumbnailUrl/previewUrl if available (matching iOS behavior)
                 if (it.thumbnailUrl.isNotBlank()) {
-                    m["previewUrl"] = it.thumbnailUrl  // Use previewUrl to match iOS field name
-                    m["thumbnailUrl"] = it.thumbnailUrl  // Also include thumbnailUrl for compatibility
+                    m["previewUrl"] = it.thumbnailUrl  
+                    m["thumbnailUrl"] = it.thumbnailUrl
                 }
                 
                 out.add(m)
@@ -1001,13 +946,11 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                         outMap["fileSize"] = fileSize
                         if (path.isNotBlank()) outMap["path"] = path
                         
-                        // Include preview data if available
                         if (!previewB64.isNullOrBlank()) outMap["previewImageBase64"] = previewB64
                         
-                        // ALWAYS include thumbnailUrl/previewUrl if available (matching iOS behavior)
                         if (!thumbUrl.isNullOrBlank()) {
-                            outMap["previewUrl"] = thumbUrl  // Use previewUrl to match iOS field name
-                            outMap["thumbnailUrl"] = thumbUrl  // Also include thumbnailUrl for compatibility
+                            outMap["previewUrl"] = thumbUrl
+                            outMap["thumbnailUrl"] = thumbUrl
                         }
                         
                         out.add(outMap)
@@ -1020,14 +963,11 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun handleClearRenderSurface(result: Result) {
         try {
-            // Clear SDK render surface
             try { NosmaiSDK.clearRenderSurface() } catch (_: Throwable) {}
             
-            // Release only the Surface; keep the TextureEntry managed by Flutter
             surface?.release()
             surface = null
             
-            // Reset surface binding flag
             surfaceReboundOnce = false
             isSurfaceReady = false
             pendingStartProcessing = false
@@ -1050,7 +990,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 if (pvLocal == null) {
                     result.success(mapOf("success" to false, "error" to "Preview not ready")); return
                 }
-                // 1) Try TextureView capture
                 val tv = findTextureView(pvLocal)
                 if (tv != null) {
                     try {
@@ -1076,7 +1015,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                         }
                     } catch (e: Throwable) { Log.w(TAG, "TextureView capture failed", e) }
                 }
-                // 2) Try SurfaceView + PixelCopy
                 val sv = findSurfaceView(pvLocal)
                 if (sv != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     try {
@@ -1109,14 +1047,12 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                         return
                     } catch (e: Throwable) { Log.w(TAG, "SurfaceView PixelCopy failed", e) }
                 }
-                // 3) Fallback OpenGL read
                 val w = pendingSurfaceWidth ?: pvLocal.width.takeIf { it > 0 } ?: 720
                 val h = pendingSurfaceHeight ?: pvLocal.height.takeIf { it > 0 } ?: 1280
                 captureUsingOpenGL(w, h, result)
                 return
             }
 
-            // Texture path
             val surf = surface
             val entry = textureEntry
             if (surf == null || entry == null) {
@@ -1165,14 +1101,11 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         }
     }
     
-    // Capture using OpenGL readPixels
     private fun captureUsingOpenGL(width: Int, height: Int, result: Result) {
         try {
-            // This approach reads pixels directly from the OpenGL framebuffer
             val buffer = java.nio.ByteBuffer.allocateDirect(width * height * 4)
             buffer.order(java.nio.ByteOrder.nativeOrder())
             
-            // Read pixels from the current OpenGL context
             android.opengl.GLES20.glReadPixels(0, 0, width, height, 
                 android.opengl.GLES20.GL_RGBA, 
                 android.opengl.GLES20.GL_UNSIGNED_BYTE, 
@@ -1180,16 +1113,13 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             
             buffer.rewind()
             
-            // Convert buffer to bitmap
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             bitmap.copyPixelsFromBuffer(buffer)
             
-            // Flip bitmap vertically (OpenGL coordinates are upside down)
             val matrix = android.graphics.Matrix()
             matrix.postScale(1f, -1f, width / 2f, height / 2f)
             val flippedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true)
             
-            // Process in background
             Thread {
                 try {
                     val baos = ByteArrayOutputStream()
@@ -1223,7 +1153,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         }
     }
 
-    // Helpers to locate preview child views in PlatformView mode
     private fun findTextureView(root: android.view.View): android.view.TextureView? {
         if (root is android.view.TextureView) return root
         if (root is android.view.ViewGroup) {
@@ -1258,14 +1187,12 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 return
             }
             
-            // Convert byte array to bitmap
             val bitmap = android.graphics.BitmapFactory.decodeByteArray(imageData, 0, imageData.size)
             if (bitmap == null) {
                 result.error("INVALID_IMAGE", "Could not create image from data", null)
                 return
             }
             
-            // Save to gallery based on Android version
             val saved = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 saveImageToGalleryQ(bitmap, imageName)
             } else {
@@ -1302,7 +1229,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 return
             }
             
-            // Save to gallery based on Android version
             val saved = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 saveVideoToGalleryQ(videoFile, videoName)
             } else {
@@ -1323,7 +1249,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         }
     }
 
-    // Helper methods for saving to gallery (Android Q+)
     private fun saveImageToGalleryQ(bitmap: Bitmap, imageName: String): Boolean {
         val resolver = context.contentResolver
         val contentValues = ContentValues().apply {
@@ -1361,7 +1286,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
             }
             
-            // Notify gallery about the new image
             val mediaScanIntent = android.content.Intent(android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
             mediaScanIntent.data = android.net.Uri.fromFile(imageFile)
             context.sendBroadcast(mediaScanIntent)
@@ -1410,7 +1334,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         return try {
             videoFile.copyTo(destFile, overwrite = true)
             
-            // Notify gallery about the new video
             val mediaScanIntent = android.content.Intent(android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
             mediaScanIntent.data = android.net.Uri.fromFile(destFile)
             context.sendBroadcast(mediaScanIntent)
@@ -1426,38 +1349,28 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private fun handleCleanup(result: Result) {
         try {
             if (isSdkInitialized) {
-                // Clean up SDK resources while preserving initialization state
-                // Similar to iOS, we don't set isInitialized to false
                 try {
                     cleanupInProgress = true
                     lastCleanupAtMs = System.currentTimeMillis()
-                    // Stop any active processing
                     if (isProcessingActive) {
                         NosmaiSDK.stopProcessing()
                         isProcessingActive = false
                     }
                     
-                    // Stop camera if running
                     camera2Helper?.stopCamera()
                     camera2Helper = null
                     
-                    // Clear any active filters/effects
                     NosmaiEffects.removeEffect()
                     NosmaiBeauty.removeAllBeautyFilters()
                     
-                    // Clear render surface temporarily to release resources
                     NosmaiSDK.clearRenderSurface()
                     
-                    // Don't release texture/surface here - keep them for reuse
-                    // Just reset the binding flag
                     surfaceReboundOnce = false
                     
-                    // Clean up recording if active
                     if (isRecording) {
                         try {
                             com.nosmai.effect.api.NosmaiSDK.stopRecording(object : com.nosmai.effect.api.NosmaiSDK.RecordingCallback {
                                 override fun onCompleted(outputPath: String?, success: Boolean, error: String?) {
-                                    // Ignore result, just cleanup
                                 }
                             })
                             isRecording = false
@@ -1468,7 +1381,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 }
             }
             
-            // Don't clear filter cache on every cleanup - only on full disposal
             
             result.success(null)
             Handler(Looper.getMainLooper()).postDelayed({ cleanupInProgress = false }, 700)
@@ -1504,7 +1416,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     
     private fun clearFilterCache() {
         try {
-            // Clear cached filter files
             val cacheDir = File(context.cacheDir, CACHE_DIR_NAME)
             if (cacheDir.exists() && cacheDir.isDirectory) {
                 cacheDir.listFiles()?.forEach { file ->
@@ -1514,7 +1425,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 }
             }
             
-            // Clear downloaded cloud filters cache
             val cloudCacheDir = File(context.filesDir, "cloud_filters")
             if (cloudCacheDir.exists() && cloudCacheDir.isDirectory) {
                 cloudCacheDir.listFiles()?.forEach { file ->
@@ -1528,25 +1438,20 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     
     private fun handleReinitializePreview(result: Result) {
         try {
-            // Don't try to reinitialize if we don't have valid texture/surface
             if (textureEntry == null || surface == null) {
                 result.success(null)
                 return
             }
             
-            // Clear the SDK render surface first
             try {
                 NosmaiSDK.clearRenderSurface()
             } catch (_: Throwable) {}
             
-            // Small delay to ensure cleanup
             Handler(Looper.getMainLooper()).postDelayed({
                 try {
-                    // Only proceed if we still have valid references
                     val entry = textureEntry
                     val surf = surface
                     if (entry != null && surf != null && !surf.isValid) {
-                        // Surface is invalid, need to recreate
                         val st = entry.surfaceTexture()
                         val w = pendingSurfaceWidth ?: 720
                         val h = pendingSurfaceHeight ?: 1280
@@ -1554,7 +1459,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                         surface = Surface(st)
                     }
                     
-                    // Set render surface if we have a valid one
                     surface?.let { s ->
                         if (s.isValid) {
                             val w = pendingSurfaceWidth ?: 720
@@ -1576,13 +1480,11 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                     result.success(null)
                 } catch (e: Throwable) {
                     Log.e(TAG, "Failed to reinitialize preview", e)
-                    // Don't error, just return success
                     result.success(null)
                 }
             }, 100)
         } catch (t: Throwable) {
             Log.e(TAG, "Reinitialize preview error", t)
-            // Don't error, just return success
             result.success(null)
         }
     }
@@ -1603,11 +1505,10 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             val cacheDir = File(context.cacheDir, CACHE_DIR_NAME)
             if (!cacheDir.exists()) cacheDir.mkdirs()
 
-            val fileName = File(assetPath).name // keep original file name
+            val fileName = File(assetPath).name
             val outFile = File(cacheDir, fileName)
 
             if (!outFile.exists() || outFile.length() == 0L) {
-                // Copy asset into cache file
                 openAnyAsset(assetPath).use { ins ->
                     FileOutputStream(outFile).use { fos ->
                         ins.copyTo(fos)
@@ -1622,7 +1523,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     }
 
     private fun openAnyAsset(assetPath: String): InputStream {
-        // Try exact path first, then prefixed with flutter_assets/
         return try {
             context.assets.open(assetPath)
         } catch (_: Exception) {
@@ -1639,7 +1539,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     }
 
     private fun extractManifestFieldsFromNosmai(filterName: String): Quad<String?, String?, String?, Boolean> {
-        // Tries multiple asset roots: flutter_assets/assets/filters/, assets/filters/, filters/
         val candidates = listOf(
             "flutter_assets/assets/filters/$filterName.nosmai",
             "assets/filters/$filterName.nosmai",
@@ -1691,15 +1590,12 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun tryLoadPreviewBase64(file: File?): String? {
         if (file == null || !file.exists()) return null
-        // Best-effort: use SDK if it exposes a preview API; otherwise skip
         return try {
-            // If SDK has a direct preview method, add here. Placeholder returns null.
             null
         } catch (_: Throwable) { null }
     }
 
     private fun tryGetFilterType(file: File?): String? {
-        // If SDK can inspect filter type on Android, plug it here. Default to effect.
         return null
     }
 
@@ -1713,21 +1609,17 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private fun resolveEffectToFile(effectPathArg: String): File? {
         val arg = effectPathArg.trim()
 
-        // 1) If already a file path
         val direct = File(arg)
         if (direct.exists()) return direct
 
-        // 2) If looks like asset full path (with or without flutter_assets prefix)
         val assetCandidates = mutableListOf<String>()
         if (arg.startsWith(FILTERS_PREFIX)) {
             assetCandidates.add("flutter_assets/$arg")
-            assetCandidates.add(arg) // sometimes packed directly
+            assetCandidates.add(arg) 
         } else if (arg.startsWith("filters/")) {
-            // Direct engine-style asset path
             assetCandidates.add("flutter_assets/$arg")
             assetCandidates.add(arg)
         } else {
-            // Treat as filter name or relative path
             val name = if (arg.endsWith(".nosmai")) arg.substringBeforeLast(".nosmai") else arg
             assetCandidates.add("flutter_assets/${FILTERS_PREFIX}${name}.nosmai")
             assetCandidates.add("${FILTERS_PREFIX}${name}.nosmai")
@@ -1742,11 +1634,9 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                     if (cached != null && cached.exists()) return cached
                 }
             } catch (_: Exception) {
-                // try next
             }
         }
 
-        // 3) Try via AssetManifest.json lookup
         val manifestJson = readAssetText(ASSET_MANIFEST_PATH)
         if (manifestJson != null) {
             val manifest = JSONObject(manifestJson)
@@ -1782,7 +1672,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) { activity = binding.activity; activityBinding = binding }
     override fun onDetachedFromActivity() { activity = null; activityBinding = null }
 
-    // Permissions and camera start like backup
     private fun ensureCameraPermissionThenStart() {
         val act = activity ?: return
         if (ContextCompat.checkSelfPermission(act, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
@@ -1801,14 +1690,12 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         val helper = camera2Helper ?: return
         val pv = previewView ?: return
         
-        // Set target dimensions if available
         val w = pendingSurfaceWidth
         val h = pendingSurfaceHeight
         if (w != null && h != null) {
             helper.setTargetDimensions(w, h)
         }
 
-        // Inform SDK about camera orientation and facing
         pv.setCameraOrientation(helper.isFrontCamera, helper.sensorOrientation)
 
         helper.setFrameCallback(object : Camera2Helper.FrameCallback {
@@ -1821,7 +1708,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 if (y == null || u == null || v == null) return
 
                 if (usingPlatformView) {
-                    // Render directly into preview view
                     pv.processYuvFrame(
                         y, u, v,
                         width, height,
@@ -1833,14 +1719,14 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                     return
                 }
 
-                // Texture-based path requires a valid external surface
                 val s = surface
                 if (s == null || !s.isValid) return
                 if (!surfaceReboundOnce) {
                     try {
                         textureEntry?.surfaceTexture()?.setDefaultBufferSize(width, height)
                         NosmaiSDK.setRenderSurface(s, width, height)
-                        NosmaiSDK.setMirrorX(helper.isFrontCamera)
+                        NosmaiSDK.setMirrorX(isFrontCamera)
+                        Log.d(TAG, "Frame processing: setMirrorX with isFrontCamera=$isFrontCamera")
                         surfaceReboundOnce = true
                     } catch (_: Throwable) {}
                 }

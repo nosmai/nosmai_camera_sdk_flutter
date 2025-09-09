@@ -87,13 +87,11 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
 
   @override
   void dispose() {
-    // Detach controller
     widget.controller?._detach();
 
-    // Cleanup
     WidgetsBinding.instance.removeObserver(this);
 
-    // Cleanup camera view
+    _nosmaiFlutter.stopProcessing().catchError((_){}); 
     _cleanupOnDispose();
 
     super.dispose();
@@ -136,21 +134,38 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     }
   }
 
-  Future<void> _resumeCamera() async {
+    Future<void> _resumeCamera() async {
     try {
-      if (_isInitialized && !_nosmaiFlutter.isProcessing) {
+      if (!mounted) return;
+
+      debugPrint("App Resumed: Re-initializing camera preview...");
+      await _nosmaiFlutter.reinitializePreview();
+      
+      if (!_nosmaiFlutter.isProcessing) {
         await _nosmaiFlutter.startProcessing();
       }
-    } catch (e) {
-      // If resume fails, camera is still pre-warmed, just reset state
+      
       if (mounted) {
         setState(() {
           _isInitialized = true;
           _isInitializing = false;
+          _initError = null;
         });
+      }
+      debugPrint("App Resumed: Camera is ready again.");
+      widget.onInitialized?.call();
+
+    } catch (e) {
+      debugPrint('Error on resuming camera: $e');
+      if (mounted) {
+        setState(() {
+          _initError = "Failed to resume camera. Please try again.";
+        });
+        widget.onError?.call(_initError!);
       }
     }
   }
+
 
   Future<void> _cleanupCamera() async {
     try {

@@ -1,3 +1,6 @@
+## 2.0.1
+- Fixed back camera mirror issue on Android.
+
 ## 2.0.0
 - Fixed Android crashing issue
 - Resolved iOS video recording issue

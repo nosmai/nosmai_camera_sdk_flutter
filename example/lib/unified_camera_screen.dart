@@ -1,7 +1,4 @@
 // ignore_for_file: avoid_print
-
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nosmai_camera_sdk/nosmai_camera_sdk.dart';
@@ -29,7 +26,10 @@ class UnifiedCameraScreen extends StatefulWidget {
 }
 
 class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
-    with TickerProviderStateMixin {
+    with
+        TickerProviderStateMixin,
+        NosmaiCameraLifecycleMixin,
+        WidgetsBindingObserver {
   // SDK instance
   final NosmaiFlutter _nosmai = NosmaiFlutter.instance;
 
@@ -53,16 +53,16 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeCategories();
     _setupAnimationControllers();
     _configureCameraForFirstUse();
-    _loadFiltersInBackground();
+    // _loadFiltersInBackground();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Ensure camera is configured when returning to this screen
     _ensureCameraReady();
   }
 
@@ -929,7 +929,12 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
                       // Back button
                       _buildIconButton(
                         icon: Icons.arrow_back_ios_rounded,
-                        onTap: () => Navigator.pop(context),
+                        onTap: () async {
+                          await cleanupBeforeNavigation();
+                          if (mounted) {
+                            Navigator.pop(context);
+                          }
+                        },
                       ),
 
                       // Center controls
@@ -1497,7 +1502,23 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _ensureCameraReady();
+        break;
+      case AppLifecycleState.paused:
+        _pauseCamera();
+        break;
+      default:
+        break;
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _recordButtonController.dispose();
     _filterPanelController.dispose();
     // Stop camera when leaving screen

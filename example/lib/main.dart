@@ -8,15 +8,15 @@ import 'unified_camera_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    await Permission.camera.request();
-    await Permission.microphone.request();
-    await NosmaiFlutter.initialize(
-      'API-KEY',
-    );
-  } catch (e) {
-    print('Failed to initialize Nosmai SDK: $e');
-  }
+  // try {
+  //   await Permission.camera.request();
+  //   await Permission.microphone.request();
+  //   await NosmaiFlutter.initialize(
+  //     'NOSMAI-c09625e5e4a530cea824e2949197dd90706052315ec2bb95',
+  //   );
+  // } catch (e) {
+  //   print('Failed to initialize Nosmai SDK: $e');
+  // }
 
   runApp(const NosmaiCameraApp());
 }
@@ -273,6 +273,12 @@ class _HomePageState extends State<HomePage> {
     try {
       final cameraPermission = await Permission.camera.request();
       await Permission.microphone.request();
+
+      if (!NosmaiFlutter.instance.isInitialized) {
+        await NosmaiFlutter.initialize(
+          'API-KEY',
+        );
+      }
 
       if (cameraPermission.isGranted && context.mounted) {
         Navigator.push(
