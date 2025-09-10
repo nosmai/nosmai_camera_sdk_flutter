@@ -1,3 +1,6 @@
+## 2.0.1+1
+- update README.md.
+
 ## 2.0.1
 - Fixed back camera mirror issue on Android.
 
