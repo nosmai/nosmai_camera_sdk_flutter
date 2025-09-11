@@ -1,3 +1,6 @@
+## 2.0.1+2
+- improve app structure.
+
 ## 2.0.1+1
 - update README.md.
 
