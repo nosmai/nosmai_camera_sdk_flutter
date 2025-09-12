@@ -1,4 +1,6 @@
 package com.nosmai.nosmai_flutter
+
+import androidx.annotation.Keep
 import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
@@ -42,6 +44,7 @@ import com.nosmai.effect.NosmaiEffects
 import com.nosmai.effect.api.NosmaiPreviewView
 import com.nosmai.effect.api.NosmaiCloud
 
+@Keep
 class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.RequestPermissionsResultListener {
     private lateinit var channel: MethodChannel
     private lateinit var context: Context

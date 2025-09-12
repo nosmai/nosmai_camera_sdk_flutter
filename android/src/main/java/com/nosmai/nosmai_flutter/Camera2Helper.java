@@ -22,6 +22,7 @@ import android.util.Range;
 import android.util.Size;
 import android.view.Surface;
 
+import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
@@ -38,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Minimal Camera2 helper to feed YUV frames to NosmaiPreviewView.
  */
+@Keep
 public class Camera2Helper {
     private static final String TAG = "Camera2Helper";
 

@@ -1,3 +1,6 @@
+## 2.0.1+3
+- Fixed Android camera crashing issue in release mode.
+
 ## 2.0.1+2
 - improve app structure.
 
