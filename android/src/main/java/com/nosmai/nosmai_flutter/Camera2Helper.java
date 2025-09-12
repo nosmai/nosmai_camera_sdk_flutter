@@ -89,6 +89,11 @@ public class Camera2Helper {
 
     public void setPreviewSurface(@Nullable Surface surface) { this.previewSurface = surface; }
     
+    // Allow changing facing without recreating helper to speed up switches
+    public void setFacing(boolean isFront) {
+        this.currentFacing = isFront ? CameraCharacteristics.LENS_FACING_FRONT : CameraCharacteristics.LENS_FACING_BACK;
+    }
+    
     public void setTargetDimensions(int width, int height) {
         this.targetWidth = width;
         this.targetHeight = height;
