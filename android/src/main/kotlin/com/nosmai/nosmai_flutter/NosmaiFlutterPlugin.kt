@@ -123,6 +123,10 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                     platformContainer = container
                     switchOverlayView = overlay
                     usingPlatformView = true
+                    // Ensure GL pipeline is initialized for the new PreviewView
+                    try {
+                        previewView?.initializePipeline()
+                    } catch (_: Throwable) {}
                     try { attemptDeferredStart() } catch (_: Throwable) {}
                     return object : PlatformView {
                         override fun getView(): android.view.View = container
@@ -450,16 +454,19 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                     root.addView(previewView, lp)
                     previewView?.alpha = 0f
                 }
+                try { previewView?.initializePipeline() } catch (_: Throwable) {}
             }
             if (previewView == null) {
                 result.error("NO_PREVIEW", "Preview not initialized", null)
                 return
             }
+            // For Texture-based path, ensure a valid render surface; PlatformView does not require this
             if (!usingPlatformView && (!isSurfaceReady || surface == null || !(surface?.isValid ?: false))) {
                 pendingStartProcessing = true
                 result.success(null)
                 return
             }
+            try { previewView?.initializePipeline() } catch (_: Throwable) {}
             NosmaiSDK.startProcessing(previewView!!)
             isProcessingActive = true
             try { NosmaiSDK.setCameraFacing(isFrontCamera) } catch (_: Throwable) {}
@@ -467,6 +474,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             
             
             ensureCameraPermissionThenStart()
+            try { previewView?.requestRenderUpdate() } catch (_: Throwable) {}
             result.success(null)
         } catch (t: Throwable) {
             Log.e(TAG, "startProcessing error", t)
@@ -1461,13 +1469,34 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     }
 
     private fun attemptDeferredStart() {
-        if (pendingStartProcessing && !isProcessingActive && isSurfaceReady && surface?.isValid == true && previewView != null && !cleanupInProgress) {
+        if (!pendingStartProcessing || isProcessingActive || cleanupInProgress) return
+        val pv = previewView ?: return
+        // PlatformView does not depend on Texture/Surface readiness
+        if (usingPlatformView) {
             try {
-                NosmaiSDK.startProcessing(previewView!!)
+                try { pv.initializePipeline() } catch (_: Throwable) {}
+                NosmaiSDK.startProcessing(pv)
+                isProcessingActive = true
+                // Ensure camera facing and mirror are correct after resume
+                try { NosmaiSDK.setCameraFacing(isFrontCamera) } catch (_: Throwable) {}
+                try { NosmaiSDK.setMirrorX(isFrontCamera) } catch (_: Throwable) {}
+                ensureCameraPermissionThenStart()
+                try { pv.requestRenderUpdate() } catch (_: Throwable) {}
+            } catch (e: Throwable) {
+                Log.e(TAG, "attemptDeferredStart (platformView) error", e)
+            } finally {
+                pendingStartProcessing = false
+            }
+            return
+        }
+        // Texture-based path requires a valid surface
+        if (isSurfaceReady && surface?.isValid == true) {
+            try {
+                NosmaiSDK.startProcessing(pv)
                 isProcessingActive = true
                 ensureCameraPermissionThenStart()
             } catch (e: Throwable) {
-                Log.e(TAG, "attemptDeferredStart error", e)
+                Log.e(TAG, "attemptDeferredStart (texture) error", e)
             } finally {
                 pendingStartProcessing = false
             }
@@ -1508,6 +1537,61 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     
     private fun handleReinitializePreview(result: Result) {
         try {
+            // For PlatformView preview, simply ensure processing is active again
+            if (usingPlatformView) {
+                try {
+                    val pv = previewView
+                    // Rebuild preview view to recover from GL/surface loss on BG/FG
+                    runOnMain {
+                        try {
+                            val container = platformContainer
+                            if (container != null) {
+                                try {
+                                    // Remove old previewView only (keep overlay if present)
+                                    previewView?.let { old -> container.removeView(old) }
+                                } catch (_: Throwable) {}
+                                // Create and insert a fresh preview view at bottom
+                                val ctx = container.context
+                                val newPv = NosmaiPreviewView(ctx)
+                                previewView = newPv
+                                container.addView(
+                                    newPv,
+                                    0,
+                                    android.widget.FrameLayout.LayoutParams(
+                                        android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                                        android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+                                    )
+                                )
+                                try { newPv.initializePipeline() } catch (_: Throwable) {}
+                            }
+                        } catch (_: Throwable) {}
+                    }
+
+                    if (!cleanupInProgress) {
+                        val latest = previewView
+                        if (latest != null) {
+                            if (!isProcessingActive) {
+                                NosmaiSDK.startProcessing(latest)
+                                isProcessingActive = true
+                            }
+                            // Re-assert camera facing and mirror after GL rebuild
+                            try { NosmaiSDK.setCameraFacing(isFrontCamera) } catch (_: Throwable) {}
+                            try { NosmaiSDK.setMirrorX(isFrontCamera) } catch (_: Throwable) {}
+                            ensureCameraPermissionThenStart()
+                            try { latest.requestRenderUpdate() } catch (_: Throwable) {}
+                        }
+                    } else {
+                        // Defer start until cleanup window passes
+                        pendingStartProcessing = true
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            try { attemptDeferredStart() } catch (_: Throwable) {}
+                        }, 350)
+                    }
+                } catch (_: Throwable) {}
+                result.success(null)
+                return
+            }
+
             if (textureEntry == null || surface == null) {
                 result.success(null)
                 return
