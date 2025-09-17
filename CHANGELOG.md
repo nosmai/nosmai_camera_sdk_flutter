@@ -1,3 +1,6 @@
+## 2.0.1+6
+- Fix no-audio issue in recorded video on Android.
+
 ## 2.0.1+5
 - Resolve camera foreground issue on Android.
 

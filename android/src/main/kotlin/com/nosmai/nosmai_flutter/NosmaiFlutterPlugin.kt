@@ -38,6 +38,11 @@ import android.provider.MediaStore
 import android.os.Build
 import android.os.Environment
 import java.io.IOException
+import android.media.MediaRecorder
+import android.media.MediaMuxer
+import android.media.MediaFormat
+import android.media.MediaCodec
+import android.media.MediaExtractor
 
 import com.nosmai.effect.api.NosmaiSDK
 import com.nosmai.effect.api.NosmaiBeauty
@@ -615,6 +620,9 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private var isRecording: Boolean = false
     private var recordingStartMs: Long = 0L
     private var recordingPath: String? = null
+    private var audioRecorder: MediaRecorder? = null
+    private var audioPath: String? = null
+    private val REQ_AUDIO = 2002
 
     private fun handleStartRecording(result: Result) {
         try {
@@ -623,19 +631,60 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 result.success(false)
                 return
             }
+
+            // Check audio permission
+            val act = activity
+            if (act != null && ContextCompat.checkSelfPermission(act, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(act, arrayOf(Manifest.permission.RECORD_AUDIO), REQ_AUDIO)
+                result.success(false)
+                return
+            }
+
             val outDir = File(context.cacheDir, "NosmaiRecordings")
             if (!outDir.exists()) outDir.mkdirs()
             val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
-            val file = File(outDir, "nosmai_$timestamp.mp4")
+            val videoFile = File(outDir, "nosmai_video_$timestamp.mp4")
+            val audioFile = File(outDir, "nosmai_audio_$timestamp.m4a")
+            audioPath = audioFile.absolutePath
 
-            NosmaiSDK.startRecording(pv, file.absolutePath, object : com.nosmai.effect.api.NosmaiSDK.RecordingCallback {
+            // Start audio recording with MediaRecorder
+            try {
+                audioRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    MediaRecorder(context)
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaRecorder()
+                }
+                audioRecorder?.apply {
+                    setAudioSource(MediaRecorder.AudioSource.MIC)
+                    setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                    setAudioSamplingRate(44100)
+                    setAudioEncodingBitRate(128000)
+                    setOutputFile(audioFile.absolutePath)
+                    prepare()
+                    start()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start audio recording", e)
+                audioRecorder = null
+            }
+
+            // Start video recording with NosmaiSDK
+            NosmaiSDK.startRecording(pv, videoFile.absolutePath, object : com.nosmai.effect.api.NosmaiSDK.RecordingCallback {
                 override fun onStarted(success: Boolean, error: String?) {
                     if (success) {
                         isRecording = true
                         recordingStartMs = System.currentTimeMillis()
-                        recordingPath = file.absolutePath
+                        recordingPath = videoFile.absolutePath
                         result.success(true)
                     } else {
+                        // Stop audio recording if video fails
+                        try {
+                            audioRecorder?.stop()
+                            audioRecorder?.release()
+                            audioRecorder = null
+                        } catch (_: Throwable) {}
                         result.success(false)
                     }
                 }
@@ -657,22 +706,84 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 ))
                 return
             }
+
+            // Stop audio recording first
+            val audioFilePath = audioPath
+            try {
+                audioRecorder?.stop()
+                audioRecorder?.release()
+                audioRecorder = null
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to stop audio recording", e)
+            }
+
             val start = recordingStartMs
             val pathAtStop = recordingPath
             com.nosmai.effect.api.NosmaiSDK.stopRecording(object : com.nosmai.effect.api.NosmaiSDK.RecordingCallback {
                 override fun onCompleted(outputPath: String?, success: Boolean, error: String?) {
                     isRecording = false
-                    val finalPath = outputPath ?: pathAtStop
+                    val videoPath = outputPath ?: pathAtStop
                     val durationSec = if (start > 0) ((System.currentTimeMillis() - start) / 1000.0) else 0.0
-                    val size = try { if (finalPath != null) File(finalPath).length().toInt() else 0 } catch (_: Throwable) { 0 }
-                    val map = mutableMapOf<String, Any?>(
-                        "success" to success,
-                        "duration" to durationSec,
-                        "fileSize" to size
-                    )
-                    if (finalPath != null) map["videoPath"] = finalPath
-                    if (!success && !error.isNullOrBlank()) map["error"] = error
-                    result.success(map)
+
+                    if (success && videoPath != null && audioFilePath != null && File(audioFilePath).exists()) {
+                        // Merge audio and video
+                        Thread {
+                            try {
+                                val outDir = File(context.cacheDir, "NosmaiRecordings")
+                                val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+                                val mergedFile = File(outDir, "nosmai_final_$timestamp.mp4")
+
+                                val merged = mergeAudioVideo(videoPath, audioFilePath, mergedFile.absolutePath)
+
+                                if (merged) {
+                                    // Delete temporary files
+                                    try { File(videoPath).delete() } catch (_: Throwable) {}
+                                    try { File(audioFilePath).delete() } catch (_: Throwable) {}
+
+                                    val size = try { mergedFile.length().toInt() } catch (_: Throwable) { 0 }
+                                    val map = mutableMapOf<String, Any?>(
+                                        "success" to true,
+                                        "duration" to durationSec,
+                                        "fileSize" to size,
+                                        "videoPath" to mergedFile.absolutePath
+                                    )
+                                    Handler(Looper.getMainLooper()).post { result.success(map) }
+                                } else {
+                                    // Return video without audio if merge fails
+                                    val size = try { File(videoPath).length().toInt() } catch (_: Throwable) { 0 }
+                                    val map = mutableMapOf<String, Any?>(
+                                        "success" to true,
+                                        "duration" to durationSec,
+                                        "fileSize" to size,
+                                        "videoPath" to videoPath
+                                    )
+                                    Handler(Looper.getMainLooper()).post { result.success(map) }
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to merge audio/video", e)
+                                // Return video without audio
+                                val size = try { File(videoPath).length().toInt() } catch (_: Throwable) { 0 }
+                                val map = mutableMapOf<String, Any?>(
+                                    "success" to true,
+                                    "duration" to durationSec,
+                                    "fileSize" to size,
+                                    "videoPath" to videoPath
+                                )
+                                Handler(Looper.getMainLooper()).post { result.success(map) }
+                            }
+                        }.start()
+                    } else {
+                        // No audio or recording failed
+                        val size = try { if (videoPath != null) File(videoPath).length().toInt() else 0 } catch (_: Throwable) { 0 }
+                        val map = mutableMapOf<String, Any?>(
+                            "success" to success,
+                            "duration" to durationSec,
+                            "fileSize" to size
+                        )
+                        if (videoPath != null) map["videoPath"] = videoPath
+                        if (!success && !error.isNullOrBlank()) map["error"] = error
+                        result.success(map)
+                    }
                 }
             })
         } catch (t: Throwable) {
@@ -1937,16 +2048,120 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         return if (front) { if (sensorOrientation == 270) 1 else 6 } else { if (sensorOrientation == 90) 2 else 1 }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray): Boolean {
-        if (requestCode == REQ_CAMERA) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                if (isProcessingActive && (usingPlatformView || (isSurfaceReady && !cleanupInProgress))) {
-                    startCamera()
+    private fun mergeAudioVideo(videoPath: String, audioPath: String, outputPath: String): Boolean {
+        try {
+            val videoExtractor = MediaExtractor()
+            videoExtractor.setDataSource(videoPath)
+
+            val audioExtractor = MediaExtractor()
+            audioExtractor.setDataSource(audioPath)
+
+            val muxer = MediaMuxer(outputPath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+
+            // Add video track
+            var videoTrackIndex = -1
+            var videoFormat: MediaFormat? = null
+            for (i in 0 until videoExtractor.trackCount) {
+                val format = videoExtractor.getTrackFormat(i)
+                val mime = format.getString(MediaFormat.KEY_MIME)
+                if (mime != null && mime.startsWith("video/")) {
+                    videoExtractor.selectTrack(i)
+                    videoTrackIndex = muxer.addTrack(format)
+                    videoFormat = format
+                    break
                 }
-            } else {
-                Log.e(TAG, "Camera permission denied")
             }
+
+            // Add audio track
+            var audioTrackIndex = -1
+            var audioFormat: MediaFormat? = null
+            for (i in 0 until audioExtractor.trackCount) {
+                val format = audioExtractor.getTrackFormat(i)
+                val mime = format.getString(MediaFormat.KEY_MIME)
+                if (mime != null && mime.startsWith("audio/")) {
+                    audioExtractor.selectTrack(i)
+                    audioTrackIndex = muxer.addTrack(format)
+                    audioFormat = format
+                    break
+                }
+            }
+
+            if (videoTrackIndex == -1) {
+                Log.e(TAG, "No video track found")
+                return false
+            }
+
+            muxer.start()
+
+            // Write video data
+            val videoBuf = java.nio.ByteBuffer.allocate(1024 * 1024)
+            val videoBufferInfo = MediaCodec.BufferInfo()
+
+            while (true) {
+                val sampleSize = videoExtractor.readSampleData(videoBuf, 0)
+                if (sampleSize < 0) break
+
+                videoBufferInfo.offset = 0
+                videoBufferInfo.size = sampleSize
+                videoBufferInfo.presentationTimeUs = videoExtractor.sampleTime
+                videoBufferInfo.flags = videoExtractor.sampleFlags
+
+                muxer.writeSampleData(videoTrackIndex, videoBuf, videoBufferInfo)
+                videoExtractor.advance()
+            }
+
+            // Write audio data if available
+            if (audioTrackIndex != -1) {
+                val audioBuf = java.nio.ByteBuffer.allocate(1024 * 1024)
+                val audioBufferInfo = MediaCodec.BufferInfo()
+
+                while (true) {
+                    val sampleSize = audioExtractor.readSampleData(audioBuf, 0)
+                    if (sampleSize < 0) break
+
+                    audioBufferInfo.offset = 0
+                    audioBufferInfo.size = sampleSize
+                    audioBufferInfo.presentationTimeUs = audioExtractor.sampleTime
+                    audioBufferInfo.flags = audioExtractor.sampleFlags
+
+                    muxer.writeSampleData(audioTrackIndex, audioBuf, audioBufferInfo)
+                    audioExtractor.advance()
+                }
+            }
+
+            // Clean up
+            muxer.stop()
+            muxer.release()
+            videoExtractor.release()
+            audioExtractor.release()
+
             return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to merge audio/video", e)
+            return false
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray): Boolean {
+        when (requestCode) {
+            REQ_CAMERA -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    if (isProcessingActive && (usingPlatformView || (isSurfaceReady && !cleanupInProgress))) {
+                        startCamera()
+                    }
+                } else {
+                    Log.e(TAG, "Camera permission denied")
+                }
+                return true
+            }
+            REQ_AUDIO -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.i(TAG, "Audio permission granted")
+                } else {
+                    Log.e(TAG, "Audio permission denied")
+                }
+                return true
+            }
         }
         return false
     }
