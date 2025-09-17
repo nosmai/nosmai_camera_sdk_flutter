@@ -1,3 +1,6 @@
+## 2.0.1+5
+- Resolve camera foreground issue on Android.
+
 ## 2.0.1+4
 - Fixed mirror issue when switching camera on Android.
 
