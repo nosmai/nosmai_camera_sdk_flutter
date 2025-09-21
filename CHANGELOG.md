@@ -1,3 +1,6 @@
+## 2.0.1+7
+- Fix aspect ratio issue on Android.
+
 ## 2.0.1+6
 - Fix no-audio issue in recorded video on Android.
 

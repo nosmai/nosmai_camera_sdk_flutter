@@ -91,7 +91,7 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
 
     WidgetsBinding.instance.removeObserver(this);
 
-    _nosmaiFlutter.stopProcessing().catchError((_){}); 
+    _nosmaiFlutter.stopProcessing().catchError((_) {});
     _cleanupOnDispose();
 
     super.dispose();
@@ -134,17 +134,17 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
     }
   }
 
-    Future<void> _resumeCamera() async {
+  Future<void> _resumeCamera() async {
     try {
       if (!mounted) return;
 
       debugPrint("App Resumed: Re-initializing camera preview...");
       await _nosmaiFlutter.reinitializePreview();
-      
+
       if (!_nosmaiFlutter.isProcessing) {
         await _nosmaiFlutter.startProcessing();
       }
-      
+
       if (mounted) {
         setState(() {
           _isInitialized = true;
@@ -154,7 +154,6 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
       }
       debugPrint("App Resumed: Camera is ready again.");
       widget.onInitialized?.call();
-
     } catch (e) {
       debugPrint('Error on resuming camera: $e');
       if (mounted) {
@@ -165,7 +164,6 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
       }
     }
   }
-
 
   Future<void> _cleanupCamera() async {
     try {
@@ -247,29 +245,19 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
   @override
   Widget build(BuildContext context) {
     if (defaultTargetPlatform == TargetPlatform.android) {
-      // Use AndroidView-based preview to avoid EGL races with Flutter Texture
-      final mediaQuery = MediaQuery.of(context);
-      final screenSize = mediaQuery.size;
-      final screenWidth = screenSize.width;
-      final screenHeight = screenSize.height;
-
-      return MediaQuery.removePadding(
-        context: context,
-        removeTop: true,
-        removeBottom: true,
-        removeLeft: true,
-        removeRight: true,
-        child: SizedBox(
-          width: widget.width ?? screenWidth,
-          height: widget.height ?? screenHeight,
-          child: AndroidView(
-            viewType: 'nosmai_camera_preview',
-            layoutDirection: TextDirection.ltr,
-            creationParams: <String, dynamic>{
-              'width': screenWidth,
-              'height': screenHeight,
-            },
-            creationParamsCodec: const StandardMessageCodec(),
+      return ClipRect(
+        child: OverflowBox(
+          maxHeight: double.infinity,
+          minHeight: MediaQuery.of(context).size.height,
+          child: const AspectRatio(
+            aspectRatio: 9.0 / 16.0,
+            child: RepaintBoundary(
+              child: AndroidView(
+                viewType: 'nosmai_camera_preview',
+                layoutDirection: TextDirection.ltr,
+                creationParamsCodec: StandardMessageCodec(),
+              ),
+            ),
           ),
         ),
       );

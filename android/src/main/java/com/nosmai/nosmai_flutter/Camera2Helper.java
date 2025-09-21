@@ -45,9 +45,9 @@ public class Camera2Helper {
 
     public interface FrameCallback {
         void onFrameAvailable(ByteBuffer y, ByteBuffer u, ByteBuffer v,
-                              int width, int height,
-                              int yStride, int uStride, int vStride,
-                              int uPixelStride, int vPixelStride);
+                int width, int height,
+                int yStride, int uStride, int vStride,
+                int uPixelStride, int vPixelStride);
     }
 
     private final Context context;
@@ -78,28 +78,46 @@ public class Camera2Helper {
         this.currentFacing = isFront ? CameraCharacteristics.LENS_FACING_FRONT : CameraCharacteristics.LENS_FACING_BACK;
     }
 
-    public void setFrameCallback(FrameCallback cb) { this.frameCallback = cb; }
+    public void setFrameCallback(FrameCallback cb) {
+        this.frameCallback = cb;
+    }
 
-    public int getSensorOrientation() { return sensorOrientation; }
+    public int getSensorOrientation() {
+        return sensorOrientation;
+    }
 
-    public boolean isFrontCamera() { return currentFacing == CameraCharacteristics.LENS_FACING_FRONT; }
+    public boolean isFrontCamera() {
+        return currentFacing == CameraCharacteristics.LENS_FACING_FRONT;
+    }
 
-    public int getPreviewWidth() { return previewSize != null ? previewSize.getWidth() : 0; }
-    public int getPreviewHeight() { return previewSize != null ? previewSize.getHeight() : 0; }
+    public int getPreviewWidth() {
+        return previewSize != null ? previewSize.getWidth() : 0;
+    }
 
-    public void setPreviewSurface(@Nullable Surface surface) { this.previewSurface = surface; }
-    
+    public int getPreviewHeight() {
+        return previewSize != null ? previewSize.getHeight() : 0;
+    }
+
+    public void setPreviewSurface(@Nullable Surface surface) {
+        this.previewSurface = surface;
+    }
+
     // Allow changing facing without recreating helper to speed up switches
     public void setFacing(boolean isFront) {
         this.currentFacing = isFront ? CameraCharacteristics.LENS_FACING_FRONT : CameraCharacteristics.LENS_FACING_BACK;
     }
-    
+
     public void setTargetDimensions(int width, int height) {
         this.targetWidth = width;
         this.targetHeight = height;
     }
 
-    public void startCamera() { stopped = false; startBg(); openCamera(); }
+    public void startCamera() {
+        stopped = false;
+        startBg();
+        openCamera();
+    }
+
     public void stopCamera() {
         stopped = true;
         cancelRetry();
@@ -124,14 +142,19 @@ public class Camera2Helper {
     private void stopBg() {
         if (bgThread != null) {
             bgThread.quitSafely();
-            try { bgThread.join(); } catch (InterruptedException ignore) {}
-            bgThread = null; bgHandler = null;
+            try {
+                bgThread.join();
+            } catch (InterruptedException ignore) {
+            }
+            bgThread = null;
+            bgHandler = null;
         }
     }
 
     @SuppressLint("MissingPermission")
     private void openCamera() {
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(context,
+                Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             Log.e(TAG, "No camera permission");
             return;
         }
@@ -140,22 +163,30 @@ public class Camera2Helper {
             retryScheduled = false;
             final long seq = ++openSeq;
             String cameraId = chooseCamera(manager);
-            if (cameraId == null) { Log.e(TAG, "No camera found"); return; }
+            if (cameraId == null) {
+                Log.e(TAG, "No camera found");
+                return;
+            }
             CameraCharacteristics chars = manager.getCameraCharacteristics(cameraId);
             sensorOrientation = chars.get(CameraCharacteristics.SENSOR_ORIENTATION);
             StreamConfigurationMap map = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             Size[] sizes = map != null ? map.getOutputSizes(SurfaceTexture.class) : null;
-            if (sizes == null) { Log.e(TAG, "No sizes"); return; }
+            if (sizes == null) {
+                Log.e(TAG, "No sizes");
+                return;
+            }
             previewSize = chooseOptimalSize(sizes, targetWidth, targetHeight);
 
-            imageReader = ImageReader.newInstance(previewSize.getWidth(), previewSize.getHeight(), ImageFormat.YUV_420_888, 3);
+            imageReader = ImageReader.newInstance(previewSize.getWidth(), previewSize.getHeight(),
+                    ImageFormat.YUV_420_888, 3);
             imageReader.setOnImageAvailableListener(onImage, bgHandler);
 
             if (!cameraLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
                 throw new RuntimeException("Timeout locking camera open");
             }
             manager.openCamera(cameraId, new CameraDevice.StateCallback() {
-                @Override public void onOpened(@NonNull CameraDevice camera) {
+                @Override
+                public void onOpened(@NonNull CameraDevice camera) {
                     // Hold the lock while creating session to avoid races with close
                     if (seq != openSeq) {
                         Log.w(TAG, "Stale onOpened ignored; seq=" + seq + ", current=" + openSeq);
@@ -175,17 +206,23 @@ public class Camera2Helper {
                         cameraLock.release();
                     }
                 }
-                @Override public void onDisconnected(@NonNull CameraDevice camera) {
+
+                @Override
+                public void onDisconnected(@NonNull CameraDevice camera) {
                     cameraLock.release();
                     camera.close();
-                    if (seq != openSeq) return;
+                    if (seq != openSeq)
+                        return;
                     cameraDevice = null;
                     scheduleRetry();
                 }
-                @Override public void onError(@NonNull CameraDevice camera, int error) {
+
+                @Override
+                public void onError(@NonNull CameraDevice camera, int error) {
                     cameraLock.release();
                     camera.close();
-                    if (seq != openSeq) return;
+                    if (seq != openSeq)
+                        return;
                     cameraDevice = null;
                     Log.e(TAG, "camera error: " + error);
                     scheduleRetry();
@@ -201,86 +238,92 @@ public class Camera2Helper {
         for (String id : manager.getCameraIdList()) {
             CameraCharacteristics c = manager.getCameraCharacteristics(id);
             Integer facing = c.get(CameraCharacteristics.LENS_FACING);
-            if (facing != null && facing == currentFacing) return id;
+            if (facing != null && facing == currentFacing)
+                return id;
         }
         String[] ids = manager.getCameraIdList();
         return ids.length > 0 ? ids[0] : null;
     }
 
     private Size chooseOptimalSize(Size[] choices, int targetWidth, int targetHeight) {
-        List<Size> bigEnough = new ArrayList<>();
-        List<Size> notBigEnough = new ArrayList<>();
-        
-        // Target aspect ratio with tolerance
-        float targetRatio = (float) targetHeight / targetWidth;
-        float aspectTolerance = 0.1f;
-        
-        for (Size option : choices) {
-            float optionRatio = (float) option.getHeight() / option.getWidth();
-            
-            // Check if aspect ratio is close enough
-            if (Math.abs(optionRatio - targetRatio) <= aspectTolerance) {
-                if (option.getWidth() >= targetWidth && option.getHeight() >= targetHeight) {
-                    bigEnough.add(option);
-                } else {
-                    notBigEnough.add(option);
-                }
+        final double TARGET_ASPECT_RATIO = 16.0 / 9.0;
+        final double ASPECT_TOLERANCE = 0.05;
+
+        List<Size> suitable16x9Sizes = new ArrayList<>();
+
+        for (Size size : choices) {
+            int width = Math.max(size.getWidth(), size.getHeight());
+            int height = Math.min(size.getWidth(), size.getHeight());
+
+            double aspectRatio = (double) width / height;
+            if (Math.abs(aspectRatio - TARGET_ASPECT_RATIO) < ASPECT_TOLERANCE) {
+                suitable16x9Sizes.add(size);
             }
         }
-        
-        // Pick the smallest of those big enough, or if no one is big enough, pick the largest
-        if (bigEnough.size() > 0) {
-            return Collections.min(bigEnough, new Comparator<Size>() {
-                @Override
-                public int compare(Size a, Size b) {
-                    return Long.signum((long) a.getWidth() * a.getHeight() - 
-                                      (long) b.getWidth() * b.getHeight());
-                }
-            });
-        } else if (notBigEnough.size() > 0) {
-            return Collections.max(notBigEnough, new Comparator<Size>() {
-                @Override
-                public int compare(Size a, Size b) {
-                    return Long.signum((long) a.getWidth() * a.getHeight() - 
-                                      (long) b.getWidth() * b.getHeight());
-                }
-            });
-        } else {
-            // If no size matches aspect ratio, pick closest to target size
-            Log.e(TAG, "No size matches aspect ratio, choosing closest");
-            return choices[0];
-        }
-    }
 
-    // per-open callbacks are created inline in openCamera()
+        if (!suitable16x9Sizes.isEmpty()) {
+            Size optimalSize = suitable16x9Sizes.get(0);
+            int minDiff = Integer.MAX_VALUE;
+
+            int idealHeight = 720;
+            for (Size size : suitable16x9Sizes) {
+                int height = Math.min(size.getWidth(), size.getHeight());
+                int diff = Math.abs(height - idealHeight);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    optimalSize = size;
+                }
+            }
+            return optimalSize;
+        }
+
+        return Collections.max(Arrays.asList(choices), new Comparator<Size>() {
+            @Override
+            public int compare(Size a, Size b) {
+                return Long.signum((long) a.getWidth() * a.getHeight() - (long) b.getWidth() * b.getHeight());
+            }
+        });
+    }
 
     private void createSession() {
         try {
-            if (cameraDevice == null || imageReader == null) return;
+            if (cameraDevice == null || imageReader == null)
+                return;
             List<Surface> targets = new ArrayList<>();
             Surface yuv = imageReader.getSurface();
             targets.add(yuv);
-            if (previewSurface != null) targets.add(previewSurface);
+            if (previewSurface != null)
+                targets.add(previewSurface);
 
             final CaptureRequest.Builder req = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             req.addTarget(yuv);
-            if (previewSurface != null) req.addTarget(previewSurface);
+            if (previewSurface != null)
+                req.addTarget(previewSurface);
 
             cameraDevice.createCaptureSession(targets, new CameraCaptureSession.StateCallback() {
-                @Override public void onConfigured(@NonNull CameraCaptureSession session) {
+                @Override
+                public void onConfigured(@NonNull CameraCaptureSession session) {
                     captureSession = session;
                     try {
-                        try { req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(15, 30)); } catch (Exception ignored) {}
-                        try { req.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE); } catch (Exception ignored) {}
+                        try {
+                            req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(15, 30));
+                        } catch (Exception ignored) {
+                        }
+                        try {
+                            req.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                        } catch (Exception ignored) {
+                        }
                         session.setRepeatingRequest(req.build(), null, bgHandler);
                         retryCount = 0;
                     } catch (CameraAccessException e) {
                         Log.e(TAG, "setRepeatingRequest failed", e);
                         if (cameraDevice != null) {
                             try {
-                                CaptureRequest.Builder simpleReq = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+                                CaptureRequest.Builder simpleReq = cameraDevice
+                                        .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
                                 simpleReq.addTarget(yuv);
-                                if (previewSurface != null) simpleReq.addTarget(previewSurface);
+                                if (previewSurface != null)
+                                    simpleReq.addTarget(previewSurface);
                                 simpleReq.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO);
                                 session.setRepeatingRequest(simpleReq.build(), null, bgHandler);
                                 Log.i(TAG, "Fallback to simple request succeeded");
@@ -291,7 +334,9 @@ public class Camera2Helper {
                         }
                     }
                 }
-                @Override public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+
+                @Override
+                public void onConfigureFailed(@NonNull CameraCaptureSession session) {
                     Log.e(TAG, "configureFailed");
                     scheduleRetry();
                 }
@@ -306,46 +351,70 @@ public class Camera2Helper {
     }
 
     private void closeCamera() {
-        try { cameraLock.acquire(); } catch (InterruptedException ignore) {}
         try {
-            if (captureSession != null) { captureSession.close(); captureSession = null; }
-            if (cameraDevice != null) { cameraDevice.close(); cameraDevice = null; }
-            if (imageReader != null) { imageReader.close(); imageReader = null; }
+            cameraLock.acquire();
+        } catch (InterruptedException ignore) {
+        }
+        try {
+            if (captureSession != null) {
+                captureSession.close();
+                captureSession = null;
+            }
+            if (cameraDevice != null) {
+                cameraDevice.close();
+                cameraDevice = null;
+            }
+            if (imageReader != null) {
+                imageReader.close();
+                imageReader = null;
+            }
             previewSurface = null;
-        } finally { cameraLock.release(); }
+        } finally {
+            cameraLock.release();
+        }
     }
 
     private final ImageReader.OnImageAvailableListener onImage = new ImageReader.OnImageAvailableListener() {
-        @Override public void onImageAvailable(ImageReader reader) {
+        @Override
+        public void onImageAvailable(ImageReader reader) {
             Image image = null;
             try {
                 image = reader.acquireLatestImage();
-                if (image == null) return;
-                if (frameCallback == null) { image.close(); return; }
+                if (image == null)
+                    return;
+                if (frameCallback == null) {
+                    image.close();
+                    return;
+                }
                 Image.Plane[] p = image.getPlanes();
                 frameCallback.onFrameAvailable(
                         p[0].getBuffer(), p[1].getBuffer(), p[2].getBuffer(),
                         image.getWidth(), image.getHeight(),
                         p[0].getRowStride(), p[1].getRowStride(), p[2].getRowStride(),
-                        p[1].getPixelStride(), p[2].getPixelStride()
-                );
+                        p[1].getPixelStride(), p[2].getPixelStride());
             } catch (Exception e) {
                 Log.e(TAG, "onImageAvailable", e);
             } finally {
-                if (image != null) image.close();
+                if (image != null)
+                    image.close();
             }
         }
     };
 
     private void scheduleRetry() {
-        if (stopped || retryCount >= MAX_RETRIES || retryScheduled) return;
+        if (stopped || retryCount >= MAX_RETRIES || retryScheduled)
+            return;
         retryCount++;
         retryScheduled = true;
         Log.e(TAG, "Scheduling camera reopen, retry=" + retryCount);
         closeCamera();
         if (bgHandler != null) {
             retryRunnable = new Runnable() {
-                @Override public void run() { retryScheduled = false; openCamera(); }
+                @Override
+                public void run() {
+                    retryScheduled = false;
+                    openCamera();
+                }
             };
             bgHandler.postDelayed(retryRunnable, 200);
         }
