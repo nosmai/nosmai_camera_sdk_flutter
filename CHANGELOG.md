@@ -1,3 +1,6 @@
+## 2.0.1+8
+- Fixed camera aspect ratio issue on Android (improves reliability across devices).
+
 ## 2.0.1+7
 - Fix aspect ratio issue on Android.
 

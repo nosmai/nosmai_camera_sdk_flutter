@@ -328,7 +328,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             val h = pendingSurfaceHeight
             if (surface != null && w != null && h != null) {
                 NosmaiSDK.setRenderSurface(surface!!, w, h)
-                // Avoid premature mirror flip during a switch; defer to first frame
                 if (!isSwitchingCamera && pendingMirrorForNextFrame == null) {
                     NosmaiSDK.setMirrorX(isFrontCamera)
                 } else {
@@ -418,9 +417,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private var isSwitchingCamera: Boolean = false
     private var lastSwitchAtMs: Long = 0L
     private var isProcessingActive: Boolean = false
-    // During camera switch, optionally suppress preview frames until mirror is applied
     private var suppressPreviewUntilMirrored: Boolean = false
-    // Defer mirror updates during camera switch to avoid pre-switch flip
     private var pendingMirrorForNextFrame: Boolean? = null
 
     private fun handleConfigureCamera(call: MethodCall, result: Result) {
@@ -465,7 +462,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 result.error("NO_PREVIEW", "Preview not initialized", null)
                 return
             }
-            // For Texture-based path, ensure a valid render surface; PlatformView does not require this
             if (!usingPlatformView && (!isSurfaceReady || surface == null || !(surface?.isValid ?: false))) {
                 pendingStartProcessing = true
                 result.success(null)
@@ -526,9 +522,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 return
             }
             isSwitchingCamera = true
-            // Start suppression to avoid visible pre-switch flip
             suppressPreviewUntilMirrored = true
-            // Smooth overlay fade-in to hide transition glitches (must run on UI thread)
             runOnMain {
                 try {
                     switchOverlayView?.let { ov ->
@@ -558,9 +552,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                     surfaceReboundOnce = false
 
                     try { 
-                        // Update camera facing immediately
                         NosmaiSDK.setCameraFacing(isFrontCamera)
-                        // Defer mirror change until first frame from new camera to prevent visible pre-switch flip
                         pendingMirrorForNextFrame = isFrontCamera
                     } catch (_: Throwable) {}
 

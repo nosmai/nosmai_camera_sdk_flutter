@@ -245,21 +245,29 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
   @override
   Widget build(BuildContext context) {
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return ClipRect(
-        child: OverflowBox(
-          maxHeight: double.infinity,
-          minHeight: MediaQuery.of(context).size.height,
-          child: const AspectRatio(
-            aspectRatio: 9.0 / 16.0,
-            child: RepaintBoundary(
-              child: AndroidView(
-                viewType: 'nosmai_camera_preview',
-                layoutDirection: TextDirection.ltr,
-                creationParamsCodec: StandardMessageCodec(),
+      const aspectRatio = 9.0 / 16.0;
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final resolvedSize =
+              _resolveAndroidPreviewSize(context, constraints, aspectRatio);
+
+          return Align(
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: resolvedSize.width,
+              height: resolvedSize.height,
+              child: ClipRect(
+                child: const RepaintBoundary(
+                  child: AndroidView(
+                    viewType: 'nosmai_camera_preview',
+                    layoutDirection: TextDirection.ltr,
+                    creationParamsCodec: StandardMessageCodec(),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       );
     }
 
@@ -401,5 +409,61 @@ class _NosmaiCameraPreviewState extends State<NosmaiCameraPreview>
       });
     }
     widget.onInitialized?.call();
+  }
+
+  Size _resolveAndroidPreviewSize(
+    BuildContext context,
+    BoxConstraints constraints,
+    double aspectRatio,
+  ) {
+    final mediaSize = MediaQuery.of(context).size;
+
+    double maxWidth = constraints.maxWidth;
+    if (!maxWidth.isFinite || maxWidth <= 0) {
+      maxWidth = mediaSize.width;
+    }
+
+    double maxHeight = constraints.maxHeight;
+    if (!maxHeight.isFinite || maxHeight <= 0) {
+      maxHeight = mediaSize.height;
+    }
+
+    if (widget.width != null && widget.height != null) {
+      final width = widget.width!.clamp(0.0, maxWidth);
+      final height = widget.height!.clamp(0.0, maxHeight);
+      return Size(width.toDouble(), height.toDouble());
+    }
+
+    double width;
+    double height;
+
+    if (widget.width != null) {
+      width = widget.width!.clamp(0.0, maxWidth).toDouble();
+      height = width / aspectRatio;
+      if (height > maxHeight) {
+        height = maxHeight;
+        width = height * aspectRatio;
+      }
+      return Size(width, height);
+    }
+
+    if (widget.height != null) {
+      height = widget.height!.clamp(0.0, maxHeight).toDouble();
+      width = height * aspectRatio;
+      if (width > maxWidth) {
+        width = maxWidth;
+        height = width / aspectRatio;
+      }
+      return Size(width, height);
+    }
+
+    width = maxWidth;
+    height = width / aspectRatio;
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * aspectRatio;
+    }
+
+    return Size(width, height);
   }
 }
