@@ -172,7 +172,6 @@ public class Camera2Helper {
             StreamConfigurationMap map = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             Size[] sizes = map != null ? map.getOutputSizes(SurfaceTexture.class) : null;
             if (sizes == null) {
-                Log.e(TAG, "No sizes");
                 return;
             }
             previewSize = chooseOptimalSize(sizes, targetWidth, targetHeight);
@@ -189,7 +188,6 @@ public class Camera2Helper {
                 public void onOpened(@NonNull CameraDevice camera) {
                     // Hold the lock while creating session to avoid races with close
                     if (seq != openSeq) {
-                        Log.w(TAG, "Stale onOpened ignored; seq=" + seq + ", current=" + openSeq);
                         camera.close();
                         cameraLock.release();
                         return;
@@ -224,12 +222,10 @@ public class Camera2Helper {
                     if (seq != openSeq)
                         return;
                     cameraDevice = null;
-                    Log.e(TAG, "camera error: " + error);
                     scheduleRetry();
                 }
             }, bgHandler);
         } catch (Exception e) {
-            Log.e(TAG, "openCamera failed", e);
             scheduleRetry();
         }
     }
@@ -316,7 +312,6 @@ public class Camera2Helper {
                         session.setRepeatingRequest(req.build(), null, bgHandler);
                         retryCount = 0;
                     } catch (CameraAccessException e) {
-                        Log.e(TAG, "setRepeatingRequest failed", e);
                         if (cameraDevice != null) {
                             try {
                                 CaptureRequest.Builder simpleReq = cameraDevice
@@ -326,9 +321,7 @@ public class Camera2Helper {
                                     simpleReq.addTarget(previewSurface);
                                 simpleReq.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO);
                                 session.setRepeatingRequest(simpleReq.build(), null, bgHandler);
-                                Log.i(TAG, "Fallback to simple request succeeded");
                             } catch (Exception e2) {
-                                Log.e(TAG, "Fallback also failed", e2);
                                 scheduleRetry();
                             }
                         }
@@ -337,15 +330,12 @@ public class Camera2Helper {
 
                 @Override
                 public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-                    Log.e(TAG, "configureFailed");
                     scheduleRetry();
                 }
             }, bgHandler);
         } catch (IllegalStateException e) {
-            Log.e(TAG, "createSession illegal state (closed device)", e);
             scheduleRetry();
         } catch (CameraAccessException e) {
-            Log.e(TAG, "createSession failed", e);
             scheduleRetry();
         }
     }
@@ -393,7 +383,6 @@ public class Camera2Helper {
                         p[0].getRowStride(), p[1].getRowStride(), p[2].getRowStride(),
                         p[1].getPixelStride(), p[2].getPixelStride());
             } catch (Exception e) {
-                Log.e(TAG, "onImageAvailable", e);
             } finally {
                 if (image != null)
                     image.close();
@@ -406,7 +395,6 @@ public class Camera2Helper {
             return;
         retryCount++;
         retryScheduled = true;
-        Log.e(TAG, "Scheduling camera reopen, retry=" + retryCount);
         closeCamera();
         if (bgHandler != null) {
             retryRunnable = new Runnable() {

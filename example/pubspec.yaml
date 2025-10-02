@@ -58,8 +58,16 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  assets:
-    - assets/filters/
+  # Note: To add new filters, create a folder in assets/Nosmai_Filters/ with:
+  #   - {filter_name}_manifest.json
+  #   - {filter_name}_preview.png
+  #   - {filter_name}.nosmai
+  # assets:
+  #   - assets/Nosmai_Filters/color_invert/
+  #   - assets/Nosmai_Filters/khaby_lame/
+  #   - assets/Nosmai_Filters/text_filter/
+    # - assets/filters/
+    # Add more filters here as: - assets/Nosmai_Filters/{filter_name}/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

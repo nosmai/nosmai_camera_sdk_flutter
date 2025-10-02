@@ -7,7 +7,6 @@ import 'unified_camera_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   runApp(const NosmaiCameraApp());
 }
 

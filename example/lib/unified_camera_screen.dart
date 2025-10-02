@@ -1,4 +1,6 @@
-// ignore_for_file: avoid_print
+// ignore_for_file: avoid_print, use_build_context_synchronously
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nosmai_camera_sdk/nosmai_camera_sdk.dart';
@@ -891,10 +893,94 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
     }
   }
 
+  Future<bool> hasOldFilterStructure() async {
+    try {
+      final manifestContent = await rootBundle.loadString('AssetManifest.json');
+      final Map<String, dynamic> manifestMap = json.decode(manifestContent);
+
+      // Check if any asset starts with 'assets/filters/' and ends with '.nosmai'
+      final hasOldFilters = manifestMap.keys.any((String key) =>
+          key.startsWith('assets/filters/') && key.endsWith('.nosmai'));
+
+      return hasOldFilters;
+    } catch (e) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          print("================= ${await hasOldFilterStructure()}");
+          print('🔘 FloatingActionButton pressed!');
+          try {
+            // Get local filters from Nosmai_Filters structure
+            final localFilters = await _nosmai.getLocalFilters();
+
+            print('📊 Local Filters (Nosmai_Filters): ${localFilters.length}');
+
+            if (localFilters.isNotEmpty) {
+              print('✅ Success!');
+              print('   Filter Count: ${localFilters.length}');
+
+              // Print all filters with their metadata
+              for (var i = 0; i < localFilters.length; i++) {
+                final filter = localFilters[i];
+                print('\n📋 Filter ${i + 1}:');
+                print('   - ID: ${filter.id}');
+                print('   - Name: ${filter.name}');
+                print('   - Display Name: ${filter.displayName}');
+                print('   - Description: ${filter.description}');
+                print('   - Filter Type: ${filter.sourceType.name}');
+                print('   - Version: ${filter.version}');
+                print('   - Author: ${filter.author}');
+                print('   - Tags: ${filter.tags}');
+                print('   - Path: ${filter.path}');
+              }
+
+              // Show snackbar
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Found ${localFilters.length} local filters',
+                    ),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+
+                // Apply first filter
+                _nosmai.applyFilter(localFilters[0].path);
+              }
+            } else {
+              print('❌ No filters found');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('No local filters found'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          } catch (e) {
+            print('❌ Error calling getLocalFilters: $e');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error: $e'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        },
+        child: const Icon(Icons.filter_vintage),
+      ),
       body: Stack(
         children: [
           const Positioned.fill(

@@ -89,6 +89,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         private const val CHANNEL = "nosmai_camera_sdk"
         private const val ASSET_MANIFEST_PATH = "flutter_assets/AssetManifest.json"
         private const val FILTERS_PREFIX = "assets/filters/"
+        private const val NOSMAI_FILTERS_PREFIX = "assets/Nosmai_Filters/"
         private const val CACHE_DIR_NAME = "NosmaiLocalFilters"
     }
 
@@ -203,50 +204,8 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     // --- Local Filters ---
     private fun handleGetLocalFilters(result: Result) {
         try {
-            val manifestJson = readAssetText(ASSET_MANIFEST_PATH)
-            if (manifestJson == null) {
-                result.success(emptyList<Any>())
-                return
-            }
-
-            val manifest = JSONObject(manifestJson)
-            val keys = manifest.keys()
-            val out = ArrayList<Map<String, Any?>>()
-
-            while (keys.hasNext()) {
-                val assetPath = keys.next()
-                if (!assetPath.startsWith(FILTERS_PREFIX) || !assetPath.endsWith(".nosmai")) continue
-
-                val name = File(assetPath).nameWithoutExtension
-                val displayName = toTitleCase(name)
-
-                val cachedFile = ensureAssetCached(assetPath)
-                val fileSize = if (cachedFile != null && cachedFile.exists()) cachedFile.length().toInt() else 0
-
-                val (ftype, disp, desc, hasPreview) = extractManifestFieldsFromNosmai(name)
-
-                val map = HashMap<String, Any?>()
-                map["id"] = name
-                map["name"] = name
-                map["displayName"] = if (!disp.isNullOrBlank()) disp else displayName
-                map["description"] = desc ?: ""
-                map["path"] = cachedFile?.absolutePath ?: ""
-                map["fileSize"] = fileSize
-                map["type"] = "local"
-                if (ftype == "filter" || ftype == "effect") map["filterType"] = ftype
-                map["isDownloaded"] = true
-                map["isFree"] = true
-
-                val previewB64 = tryExtractPreviewBase64(name)
-                if (!previewB64.isNullOrBlank()) {
-                    map["previewImageBase64"] = previewB64
-                    map["previewUrl"] = "data:image/jpeg;base64,$previewB64"
-                }
-
-                out.add(map)
-            }
-
-            result.success(out)
+            val filters = getNosmaiFilters()
+            result.success(filters)
         } catch (t: Throwable) {
             Log.e(TAG, "getLocalFilters error", t)
             result.error("FILTER_LOAD_ERROR", t.message, null)
@@ -1097,49 +1056,49 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     }
 
     private fun handleGetFilters(result: Result) {
-        try {
-            val grouped = com.nosmai.effect.NosmaiEffects.getFilters()
-            val out = ArrayList<Map<String, Any?>>()
-            if (grouped != null) {
-                for (entry in grouped.entries) {
-                    val list = entry.value as? List<*> ?: continue
-                    for (item in list) {
-                        val m = item as? Map<*, *> ?: continue
-                        val name = (m["name"] as? String)?.trim().orEmpty()
-                        if (name.isBlank()) continue
-                        val id = ((m["filterId"] as? String)?.takeIf { it.isNotBlank() } ?: name)
-                        val displayName = ((m["displayName"] as? String)?.takeIf { it.isNotBlank() } ?: toTitleCase(name))
-                        val type = (m["type"] as? String)?.lowercase() ?: "local"
-                        val path = ((m["localPath"] as? String)?.takeIf { it.isNotBlank() } ?: (m["path"] as? String)).orEmpty()
-                        val fileSize = (m["fileSize"] as? Number)?.toInt() ?: 0
-                        val filterType = (m["filterType"] as? String)?.lowercase() ?: mapCategoryToFilterType(m["category"] as? String)
-                        val downloaded = (m["isDownloaded"] as? Boolean) ?: (type == "local")
-                        val previewB64 = m["previewBase64"] as? String
-                        val thumbUrl = m["thumbnailUrl"] as? String
+        // try {
+        //     val grouped = com.nosmai.effect.NosmaiEffects.getFilters()
+        //     val out = ArrayList<Map<String, Any?>>()
+        //     if (grouped != null) {
+        //         for (entry in grouped.entries) {
+        //             val list = entry.value as? List<*> ?: continue
+        //             for (item in list) {
+        //                 val m = item as? Map<*, *> ?: continue
+        //                 val name = (m["name"] as? String)?.trim().orEmpty()
+        //                 if (name.isBlank()) continue
+        //                 val id = ((m["filterId"] as? String)?.takeIf { it.isNotBlank() } ?: name)
+        //                 val displayName = ((m["displayName"] as? String)?.takeIf { it.isNotBlank() } ?: toTitleCase(name))
+        //                 val type = (m["type"] as? String)?.lowercase() ?: "local"
+        //                 val path = ((m["localPath"] as? String)?.takeIf { it.isNotBlank() } ?: (m["path"] as? String)).orEmpty()
+        //                 val fileSize = (m["fileSize"] as? Number)?.toInt() ?: 0
+        //                 val filterType = (m["filterType"] as? String)?.lowercase() ?: mapCategoryToFilterType(m["category"] as? String)
+        //                 val downloaded = (m["isDownloaded"] as? Boolean) ?: (type == "local")
+        //                 val previewB64 = m["previewBase64"] as? String
+        //                 val thumbUrl = m["thumbnailUrl"] as? String
 
-                        val outMap = HashMap<String, Any?>()
-                        outMap["id"] = id
-                        outMap["name"] = name
-                        outMap["displayName"] = displayName
-                        outMap["type"] = type
-                        outMap["filterType"] = filterType
-                        outMap["isDownloaded"] = downloaded
-                        outMap["fileSize"] = fileSize
-                        if (path.isNotBlank()) outMap["path"] = path
+        //                 val outMap = HashMap<String, Any?>()
+        //                 outMap["id"] = id
+        //                 outMap["name"] = name
+        //                 outMap["displayName"] = displayName
+        //                 outMap["type"] = type
+        //                 outMap["filterType"] = filterType
+        //                 outMap["isDownloaded"] = downloaded
+        //                 outMap["fileSize"] = fileSize
+        //                 if (path.isNotBlank()) outMap["path"] = path
                         
-                        if (!previewB64.isNullOrBlank()) outMap["previewImageBase64"] = previewB64
+        //                 if (!previewB64.isNullOrBlank()) outMap["previewImageBase64"] = previewB64
                         
-                        if (!thumbUrl.isNullOrBlank()) {
-                            outMap["previewUrl"] = thumbUrl
-                            outMap["thumbnailUrl"] = thumbUrl
-                        }
+        //                 if (!thumbUrl.isNullOrBlank()) {
+        //                     outMap["previewUrl"] = thumbUrl
+        //                     outMap["thumbnailUrl"] = thumbUrl
+        //                 }
                         
-                        out.add(outMap)
-                    }
-                }
-            }
-            result.success(out)
-        } catch (t: Throwable) { result.error("GET_FILTERS_ERROR", t.message, null) }
+        //                 out.add(outMap)
+        //             }
+        //         }
+        //     }
+        //     result.success(out)
+        // } catch (t: Throwable) { result.error("GET_FILTERS_ERROR", t.message, null) }
     }
 
     private fun handleClearRenderSurface(result: Result) {
@@ -1574,13 +1533,11 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private fun attemptDeferredStart() {
         if (!pendingStartProcessing || isProcessingActive || cleanupInProgress) return
         val pv = previewView ?: return
-        // PlatformView does not depend on Texture/Surface readiness
         if (usingPlatformView) {
             try {
                 try { pv.initializePipeline() } catch (_: Throwable) {}
                 NosmaiSDK.startProcessing(pv)
                 isProcessingActive = true
-                // Ensure camera facing and mirror are correct after resume
                 try { NosmaiSDK.setCameraFacing(isFrontCamera) } catch (_: Throwable) {}
                 try { NosmaiSDK.setMirrorX(isFrontCamera) } catch (_: Throwable) {}
                 ensureCameraPermissionThenStart()
@@ -1592,7 +1549,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             }
             return
         }
-        // Texture-based path requires a valid surface
         if (isSurfaceReady && surface?.isValid == true) {
             try {
                 NosmaiSDK.startProcessing(pv)
@@ -1640,20 +1596,16 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     
     private fun handleReinitializePreview(result: Result) {
         try {
-            // For PlatformView preview, simply ensure processing is active again
             if (usingPlatformView) {
                 try {
                     val pv = previewView
-                    // Rebuild preview view to recover from GL/surface loss on BG/FG
                     runOnMain {
                         try {
                             val container = platformContainer
                             if (container != null) {
                                 try {
-                                    // Remove old previewView only (keep overlay if present)
                                     previewView?.let { old -> container.removeView(old) }
                                 } catch (_: Throwable) {}
-                                // Create and insert a fresh preview view at bottom
                                 val ctx = container.context
                                 val newPv = NosmaiPreviewView(ctx)
                                 previewView = newPv
@@ -1677,14 +1629,12 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                                 NosmaiSDK.startProcessing(latest)
                                 isProcessingActive = true
                             }
-                            // Re-assert camera facing and mirror after GL rebuild
                             try { NosmaiSDK.setCameraFacing(isFrontCamera) } catch (_: Throwable) {}
                             try { NosmaiSDK.setMirrorX(isFrontCamera) } catch (_: Throwable) {}
                             ensureCameraPermissionThenStart()
                             try { latest.requestRenderUpdate() } catch (_: Throwable) {}
                         }
                     } else {
-                        // Defer start until cleanup window passes
                         pendingStartProcessing = true
                         Handler(Looper.getMainLooper()).postDelayed({
                             try { attemptDeferredStart() } catch (_: Throwable) {}
@@ -1750,7 +1700,127 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         }
     }
 
-    // --- Helpers ---
+
+    private fun getNosmaiFilters(): List<Map<String, Any?>> {
+        val filters = mutableListOf<Map<String, Any?>>()
+
+        try {
+            val manifestJson = readAssetText(ASSET_MANIFEST_PATH) ?: return filters
+            val manifest = JSONObject(manifestJson)
+            val keys = manifest.keys()
+            val filterFolders = mutableSetOf<String>()
+
+            while (keys.hasNext()) {
+                val assetPath = keys.next()
+                if (assetPath.startsWith(NOSMAI_FILTERS_PREFIX)) {
+                    val relativePath = assetPath.removePrefix(NOSMAI_FILTERS_PREFIX)
+                    val parts = relativePath.split("/")
+                    if (parts.size >= 2) {
+                        filterFolders.add(parts[0])
+                    }
+                }
+            }
+
+            for (filterName in filterFolders.sorted()) {
+                val filterInfo = loadNosmaiFilter(filterName) ?: continue
+                filters.add(filterInfo)
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error discovering Nosmai filters", e)
+        }
+
+        return filters
+    }
+
+    private fun loadNosmaiFilter(filterName: String): Map<String, Any?>? {
+        try {
+            val manifestPath = "flutter_assets/${NOSMAI_FILTERS_PREFIX}${filterName}/${filterName}_manifest.json"
+            val nosmaiPath = "flutter_assets/${NOSMAI_FILTERS_PREFIX}${filterName}/${filterName}.nosmai"
+            val previewPath = "flutter_assets/${NOSMAI_FILTERS_PREFIX}${filterName}/${filterName}_preview.png"
+
+            // Validate .nosmai file exists
+            val nosmaiFile = ensureAssetCached(nosmaiPath)
+            if (nosmaiFile == null || !nosmaiFile.exists()) {
+                Log.e(TAG, "Error: Missing .nosmai file for filter '$filterName'")
+                return null
+            }
+
+            val filterInfo = mutableMapOf<String, Any?>()
+
+            // Read manifest.json for metadata
+            val manifestText = readAssetText(manifestPath)
+            if (manifestText != null) {
+                try {
+                    val manifest = JSONObject(manifestText)
+                    filterInfo["id"] = manifest.optString("id", filterName)
+                    filterInfo["name"] = manifest.optString("id", filterName)
+                    filterInfo["displayName"] = manifest.optString("displayName", toTitleCase(filterName))
+                    filterInfo["description"] = manifest.optString("description", "")
+                    filterInfo["filterType"] = manifest.optString("filterType", "effect")
+                    filterInfo["version"] = manifest.optString("version", "1.0.0")
+                    filterInfo["author"] = manifest.optString("author", "")
+                    filterInfo["minSDKVersion"] = manifest.optString("minSDKVersion", "1.0.0")
+                    filterInfo["created"] = manifest.optString("created", "")
+
+                    // Parse tags array
+                    val tagsArray = manifest.optJSONArray("tags")
+                    val tags = mutableListOf<String>()
+                    if (tagsArray != null) {
+                        for (i in 0 until tagsArray.length()) {
+                            tags.add(tagsArray.getString(i))
+                        }
+                    }
+                    filterInfo["tags"] = tags
+
+                } catch (e: Exception) {
+                    Log.w(TAG, "Warning: Failed to parse manifest.json for filter '$filterName': ${e.message}")
+                    // Use defaults
+                    filterInfo["id"] = filterName
+                    filterInfo["name"] = filterName
+                    filterInfo["displayName"] = toTitleCase(filterName)
+                    filterInfo["filterType"] = "effect"
+                }
+            } else {
+                Log.w(TAG, "Warning: Missing manifest.json for filter '$filterName', using defaults")
+                // Use defaults
+                filterInfo["id"] = filterName
+                filterInfo["name"] = filterName
+                filterInfo["displayName"] = toTitleCase(filterName)
+                filterInfo["filterType"] = "effect"
+            }
+
+            filterInfo["path"] = nosmaiFile.absolutePath
+            filterInfo["effectPath"] = nosmaiFile.absolutePath
+            filterInfo["fileSize"] = nosmaiFile.length().toInt()
+            filterInfo["type"] = "local"
+            filterInfo["isDownloaded"] = true
+
+            // Load preview image
+            try {
+                val previewStream = context.assets.open(previewPath)
+                val previewBitmap = android.graphics.BitmapFactory.decodeStream(previewStream)
+                previewStream.close()
+
+                if (previewBitmap != null) {
+                    filterInfo["previewImageBase64"] = bitmapToBase64(previewBitmap)
+                    filterInfo["hasPreview"] = true
+                } else {
+                    filterInfo["hasPreview"] = false
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Warning: No preview image available for filter '$filterName'")
+                filterInfo["hasPreview"] = false
+            }
+
+            return filterInfo
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading filter '$filterName'", e)
+            return null
+        }
+    }
+
     private fun readAssetText(assetPath: String): String? {
         return try {
             context.assets.open(assetPath).use { ins ->
@@ -1922,7 +1992,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         activity = binding.activity
         activityBinding = binding
         activityBinding?.addRequestPermissionsResultListener(this)
-        // If init was requested before activity was available, complete it now
         val key = pendingLicenseKey
         if (key != null && !isSdkInitialized) {
             try { initializeSdk(binding.activity, key) } catch (_: Throwable) {}
@@ -1968,13 +2037,10 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             ) {
                 if (y == null || u == null || v == null) return
 
-                // If a mirror update is pending (e.g., after switch), apply it exactly when the new feed starts
                 pendingMirrorForNextFrame?.let { mirror ->
                     try { NosmaiSDK.setMirrorX(mirror) } catch (_: Throwable) {}
                     pendingMirrorForNextFrame = null
-                    // Mirror is set; allow preview to resume
                     suppressPreviewUntilMirrored = false
-                    // Smooth overlay fade-out now that the new feed is correctly mirrored (must run on UI thread)
                     runOnMain {
                         try {
                             switchOverlayView?.let { ov ->
@@ -1989,7 +2055,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
                 if (usingPlatformView) {
                     if (suppressPreviewUntilMirrored) {
-                        // Drop frame to avoid transient flip during switch
                         return
                     }
                     pv.processYuvFrame(
@@ -2009,7 +2074,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                     try {
                         textureEntry?.surfaceTexture()?.setDefaultBufferSize(width, height)
                         NosmaiSDK.setRenderSurface(s, width, height)
-                        // Apply mirror only if not already deferred; otherwise it will be applied above on first frame
                         if (pendingMirrorForNextFrame == null) {
                             NosmaiSDK.setMirrorX(isFrontCamera)
                             Log.d(TAG, "Frame processing: setMirrorX with isFrontCamera=$isFrontCamera")
@@ -2019,7 +2083,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 }
 
                 if (suppressPreviewUntilMirrored) {
-                    // Drop frame to avoid transient flip during switch
                     return
                 }
 

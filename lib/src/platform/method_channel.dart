@@ -305,31 +305,6 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     }
   }
 
-  @override
-  Future<List<dynamic>> getEffectParameters() async {
-    try {
-      final result = await methodChannel
-          .invokeMethod<List<dynamic>>('getEffectParameters');
-      return result ?? [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  @override
-  Future<bool> setEffectParameter(String parameterName, double value) async {
-    try {
-      final result =
-          await methodChannel.invokeMethod<bool>('setEffectParameter', {
-        'parameterName': parameterName,
-        'value': value,
-      });
-      return result ?? false;
-    } catch (e) {
-      return false;
-    }
-  }
-
   // Recording Features Implementation
   @override
   Future<bool> startRecording() async {

@@ -1,3 +1,23 @@
+## 3.0.0
+- **⚠️ BREAKING CHANGE**: Filter structure updated for better performance
+  - Old `assets/filters/` structure is now DEPRECATED
+  - New structure: `assets/Nosmai_Filters/{filter_name}/` with manifest files
+  - Each filter must include: `{filter_name}_manifest.json`, `{filter_name}_preview.png`, `{filter_name}.nosmai`
+  - **Migration required**: Update pubspec.yaml to declare each filter path individually
+  - See [example/pubspec.yaml](example/pubspec.yaml) for reference
+  - Download new filters from: https://effects.nosmai.com/assets-store/filters
+- **NEW FEATURES**:
+  - Added metadata support: version, author, tags, creation date
+  - Updated `NosmaiFilter` model with new optional fields
+- **IMPROVEMENTS**:
+  - **Native SDK Updates**: Updated native iOS and Android code for better performance and stability
+  - Enhanced camera processing pipeline for smoother real-time effects
+  - Improved memory management and resource handling
+  - Optimized filter loading and application mechanism
+  - Better error handling and recovery across all SDK operations
+  - Updated `getLocalFilters()` to use new structure on iOS and Android
+  - Enhanced README and documentation with comprehensive filter guides
+
 ## 2.0.1+8
 - Fixed camera aspect ratio issue on Android (improves reliability across devices).
 

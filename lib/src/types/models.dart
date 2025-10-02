@@ -39,6 +39,13 @@ class NosmaiFilter {
   final int downloadCount;
   final int price;
 
+  // New structure properties (optional - only for Nosmai_Filters structure)
+  final String? version;
+  final String? author;
+  final String? minSDKVersion;
+  final String? created;
+  final List<String>? tags;
+
   const NosmaiFilter({
     required this.id,
     required this.name,
@@ -55,6 +62,11 @@ class NosmaiFilter {
     this.category,
     this.downloadCount = 0,
     this.price = 0,
+    this.version,
+    this.author,
+    this.minSDKVersion,
+    this.created,
+    this.tags,
   });
 
   /// Check if this is a cloud filter
@@ -111,6 +123,19 @@ class NosmaiFilter {
       finalPath = '';
     }
 
+    // Parse tags array safely
+    List<String>? tags;
+    if (map['tags'] != null) {
+      try {
+        final tagsList = map['tags'];
+        if (tagsList is List) {
+          tags = tagsList.map((e) => e.toString()).toList();
+        }
+      } catch (e) {
+        tags = null;
+      }
+    }
+
     return NosmaiFilter(
       id: map['id']?.toString() ??
           map['filterId']?.toString() ??
@@ -133,6 +158,11 @@ class NosmaiFilter {
       category: map['category']?.toString(),
       downloadCount: _parseIntSafely(map['downloadCount']) ?? 0,
       price: _parseIntSafely(map['price']) ?? 0,
+      version: map['version']?.toString(),
+      author: map['author']?.toString(),
+      minSDKVersion: map['minSDKVersion']?.toString(),
+      created: map['created']?.toString(),
+      tags: tags,
     );
   }
 
@@ -153,6 +183,11 @@ class NosmaiFilter {
       'category': category,
       'downloadCount': downloadCount,
       'price': price,
+      'version': version,
+      'author': author,
+      'minSDKVersion': minSDKVersion,
+      'created': created,
+      'tags': tags,
     };
   }
 
@@ -191,47 +226,6 @@ class NosmaiDownloadProgress {
       'progress': progress,
       'bytesDownloaded': bytesDownloaded,
       'totalBytes': totalBytes,
-    };
-  }
-}
-
-/// Effect parameter information
-class NosmaiEffectParameter {
-  final String name;
-  final String type;
-  final double defaultValue;
-  final String passId;
-  final double? minValue;
-  final double? maxValue;
-
-  const NosmaiEffectParameter({
-    required this.name,
-    required this.type,
-    required this.defaultValue,
-    required this.passId,
-    this.minValue,
-    this.maxValue,
-  });
-
-  factory NosmaiEffectParameter.fromMap(Map<String, dynamic> map) {
-    return NosmaiEffectParameter(
-      name: map['name']?.toString() ?? '',
-      type: map['type']?.toString() ?? '',
-      defaultValue: (map['defaultValue'] as num?)?.toDouble() ?? 0.0,
-      passId: map['passId']?.toString() ?? '',
-      minValue: (map['minValue'] as num?)?.toDouble(),
-      maxValue: (map['maxValue'] as num?)?.toDouble(),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'type': type,
-      'defaultValue': defaultValue,
-      'passId': passId,
-      'minValue': minValue,
-      'maxValue': maxValue,
     };
   }
 }

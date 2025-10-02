@@ -91,14 +91,6 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
     throw UnimplementedError('getFilters() has not been implemented.');
   }
 
-  Future<List<dynamic>> getEffectParameters() {
-    throw UnimplementedError('getEffectParameters() has not been implemented.');
-  }
-
-  Future<bool> setEffectParameter(String parameterName, double value) {
-    throw UnimplementedError('setEffectParameter() has not been implemented.');
-  }
-
   // Recording Features
   Future<bool> startRecording() {
     throw UnimplementedError('startRecording() has not been implemented.');

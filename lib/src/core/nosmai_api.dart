@@ -3,6 +3,7 @@
 /// This file contains the main NosmaiFlutter class and core API methods.
 
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/services.dart';
 
 import '../types/enums.dart';
@@ -89,8 +90,7 @@ class NosmaiFlutter {
 
   static void dispatchNativeRecordingProgress(double durationSeconds) {
     final inst = NosmaiFlutter.instance;
-    inst._recordingProgressController ??=
-        StreamController<double>.broadcast();
+    inst._recordingProgressController ??= StreamController<double>.broadcast();
     inst._recordingProgressController!.add(durationSeconds);
   }
 
@@ -110,6 +110,31 @@ class NosmaiFlutter {
   /// Returns true if initialization was successful, false otherwise.
   static Future<bool> initialize(String licenseKey) async {
     final instance = NosmaiFlutter.instance;
+
+    // Print deprecation notice and filter structure update information
+    print('');
+    print('╔════════════════════════════════════════════════════════════════════════╗');
+    print('║                   🎬 Nosmai SDK Initialization                        ║');
+    print('╠════════════════════════════════════════════════════════════════════════╣');
+    print('║                                                                        ║');
+    print('║  ⚠️  IMPORTANT NOTICE - Filter Structure Updated                      ║');
+    print('║                                                                        ║');
+    print('║  📢 The old "assets/filters/" structure has been DEPRECATED           ║');
+    print('║                                                                        ║');
+    print('║  ✅ New filter structure:                                             ║');
+    print('║     assets/Nosmai_Filters/{filter_name}/                              ║');
+    print('║       ├── {filter_name}_manifest.json                                 ║');
+    print('║       ├── {filter_name}_preview.png                                   ║');
+    print('║       └── {filter_name}.nosmai                                        ║');
+    print('║                                                                        ║');
+    print('║  🌐 Download new filters from Nosmai Official Assets Store:           ║');
+    print('║     👉 https://effects.nosmai.com/assets-store/filters                ║');
+    print('║                                                                        ║');
+    print('║  📖 Please update your project filters to the new format              ║');
+    print('║     for optimal performance and compatibility.                        ║');
+    print('║                                                                        ║');
+    print('╚════════════════════════════════════════════════════════════════════════╝');
+    print('');
 
     // Reset instance state if needed
     if (instance._isDisposed) {
@@ -283,11 +308,22 @@ class NosmaiFlutter {
     try {
       final List<dynamic> filters =
           await NosmaiFlutterPlatform.instance.getLocalFilters();
-      return filters
+
+      final filterList = filters
           .map((filter) =>
               NosmaiFilter.fromMap(Map<String, dynamic>.from(filter)))
           .toList();
+
+      // Check for old filter structure if no filters found
+      if (filterList.isEmpty) {
+        await _checkAndWarnOldFilterStructure();
+      }
+
+      return filterList;
     } on PlatformException catch (e) {
+      // Check for old filter structure on error
+      await _checkAndWarnOldFilterStructure();
+
       throw NosmaiError.filter(
         type: _parseErrorType(e.code),
         message: e.message ?? 'Failed to get local filters',
@@ -533,7 +569,7 @@ class NosmaiFlutter {
     _checkInitialized();
     await NosmaiFlutterPlatform.instance.detachCameraView();
   }
-  
+
   /// Reinitialize the preview (useful for navigation recovery)
   Future<void> reinitializePreview() async {
     _checkInitialized();
@@ -630,7 +666,8 @@ class NosmaiFlutter {
   /// Apply makeup blend level filter
   Future<void> applyMakeupBlendLevel(String filterName, double level) async {
     _checkInitialized();
-    await NosmaiFlutterPlatform.instance.applyMakeupBlendLevel(filterName, level);
+    await NosmaiFlutterPlatform.instance
+        .applyMakeupBlendLevel(filterName, level);
   }
 
   /// Apply grayscale filter
@@ -802,6 +839,63 @@ class NosmaiFlutter {
     return operation.whenComplete(() {
       _activeOperations.remove(operation);
     });
+  }
+
+  /// Check if old filter structure exists and print warning
+  Future<void> _checkAndWarnOldFilterStructure() async {
+    try {
+      final hasOldFilters = await _hasOldFilterStructure();
+      if (hasOldFilters) {
+        print('');
+        print('╔════════════════════════════════════════════════════════════════════════╗');
+        print('║                    ⚠️  OLD FILTER STRUCTURE DETECTED                   ║');
+        print('╠════════════════════════════════════════════════════════════════════════╣');
+        print('║                                                                        ║');
+        print('║  🚨 CRITICAL: Old filters found in "assets/filters/" directory!       ║');
+        print('║                                                                        ║');
+        print('║  ❌ The "assets/filters/" structure is now DEPRECATED and will not    ║');
+        print('║     work with the current version of Nosmai SDK.                      ║');
+        print('║                                                                        ║');
+        print('║  📢 ACTION REQUIRED:                                                   ║');
+        print('║     1. Remove all filters from "assets/filters/" directory            ║');
+        print('║     2. Download new filters from Nosmai Official Assets Store         ║');
+        print('║     3. Place them in the new structure:                               ║');
+        print('║        assets/Nosmai_Filters/{filter_name}/                           ║');
+        print('║          ├── {filter_name}_manifest.json                              ║');
+        print('║          ├── {filter_name}_preview.png                                ║');
+        print('║          └── {filter_name}.nosmai                                     ║');
+        print('║                                                                        ║');
+        print('║  🌐 Download new filters here:                                        ║');
+        print('║     👉 https://effects.nosmai.com/assets-store/filters                ║');
+        print('║                                                                        ║');
+        print('║  ℹ️  Your app will not load any filters until you update to the      ║');
+        print('║     new structure.                                                    ║');
+        print('║                                                                        ║');
+        print('╚════════════════════════════════════════════════════════════════════════╝');
+        print('');
+      }
+    } catch (e) {
+      // Silently ignore errors in checking old structure
+    }
+  }
+
+  /// Check if old "assets/filters/" structure exists with .nosmai files
+  Future<bool> _hasOldFilterStructure() async {
+    try {
+      final manifestContent =
+          await PlatformAssetBundle().loadString('AssetManifest.json');
+      final Map<String, dynamic> manifestMap =
+          Map<String, dynamic>.from(
+              const JsonCodec().decode(manifestContent) as Map);
+
+      // Check if any asset starts with 'assets/filters/' and ends with '.nosmai'
+      final hasOldFilters = manifestMap.keys.any((String key) =>
+          key.startsWith('assets/filters/') && key.endsWith('.nosmai'));
+
+      return hasOldFilters;
+    } catch (e) {
+      return false;
+    }
   }
 
   /// Helper function to parse error type from platform error code

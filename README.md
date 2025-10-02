@@ -18,13 +18,52 @@ A Flutter plugin for integrating the Nosmai SDK - Real-time video filtering and 
 | iOS      | ✅ Supported (iOS 14.0+) |
 | Android  | ✅ Supported (API 21+) |
 
+## ⚠️ Breaking Changes (v3.0.0+)
+
+**Filter Structure Updated for Better Performance**
+
+The old `assets/filters/` structure has been **deprecated** and replaced with a new organized structure to improve performance and maintainability.
+
+### Migration Required
+
+❌ **Old Structure (Deprecated):**
+```
+assets/filters/
+  └── filter_name.nosmai
+```
+
+✅ **New Structure (Required):**
+```
+assets/Nosmai_Filters/
+  └── {filter_name}/
+      ├── {filter_name}_manifest.json
+      ├── {filter_name}_preview.png
+      └── {filter_name}.nosmai
+```
+
+### Action Items:
+
+1. **Remove old filters** from `assets/filters/` directory
+2. **Download new filters** from [Nosmai Assets Store](https://effects.nosmai.com/assets-store/filters)
+3. **Update `pubspec.yaml`** - Each filter needs individual path declaration:
+
+```yaml
+flutter:
+  assets:
+    - assets/Nosmai_Filters/color_invert/
+    - assets/Nosmai_Filters/khaby_lame/
+    - assets/Nosmai_Filters/your_filter_name/
+```
+
+> **Note:** See [example/pubspec.yaml](example/pubspec.yaml) for reference implementation.
+
 ## Installation
 
 Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  nosmai_camera_sdk: ^2.0.1
+  nosmai_camera_sdk: ^3.0.0
 ```
 
 ## Setup
