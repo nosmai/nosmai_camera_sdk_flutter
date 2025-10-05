@@ -89,7 +89,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         private const val CHANNEL = "nosmai_camera_sdk"
         private const val ASSET_MANIFEST_PATH = "flutter_assets/AssetManifest.json"
         private const val FILTERS_PREFIX = "assets/filters/"
-        private const val NOSMAI_FILTERS_PREFIX = "assets/Nosmai_Filters/"
+        private const val NOSMAI_FILTERS_PREFIX = "assets/nosmai_filters/"
         private const val CACHE_DIR_NAME = "NosmaiLocalFilters"
     }
 

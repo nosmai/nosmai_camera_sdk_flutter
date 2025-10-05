@@ -1,4 +1,6 @@
 // ignore_for_file: avoid_print, use_build_context_synchronously
+import 'dart:convert' show json;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nosmai_camera_sdk/nosmai_camera_sdk.dart';
@@ -915,10 +917,10 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
           print("================= ${await hasOldFilterStructure()}");
           print('🔘 FloatingActionButton pressed!');
           try {
-            // Get local filters from Nosmai_Filters structure
+            // Get local filters from nosmai_filters structure
             final localFilters = await _nosmai.getLocalFilters();
 
-            print('📊 Local Filters (Nosmai_Filters): ${localFilters.length}');
+            print('📊 Local Filters (nosmai_filters): ${localFilters.length}');
 
             if (localFilters.isNotEmpty) {
               print('✅ Success!');

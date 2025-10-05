@@ -1,3 +1,10 @@
+## 3.0.1
+- **CHANGE**: Filter directory path updated for better consistency
+  - Changed filter path from `assets/Nosmai_Filters/` to `assets/nosmai_filters/` (lowercase)
+  - Updated native code paths on both iOS and Android platforms
+  - Updated documentation and examples to reflect new path structure
+  - **Migration**: Rename your filter directory from `Nosmai_Filters` to `nosmai_filters` and update `pubspec.yaml` asset paths
+
 ## 3.0.0
 - **⚠️ BREAKING CHANGE**: Filter structure updated for better performance
   - Old `assets/filters/` structure is now DEPRECATED

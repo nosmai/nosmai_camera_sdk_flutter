@@ -34,7 +34,7 @@ assets/filters/
 
 ✅ **New Structure (Required):**
 ```
-assets/Nosmai_Filters/
+assets/nosmai_filters/
   └── {filter_name}/
       ├── {filter_name}_manifest.json
       ├── {filter_name}_preview.png
@@ -50,9 +50,9 @@ assets/Nosmai_Filters/
 ```yaml
 flutter:
   assets:
-    - assets/Nosmai_Filters/color_invert/
-    - assets/Nosmai_Filters/khaby_lame/
-    - assets/Nosmai_Filters/your_filter_name/
+    - assets/nosmai_filters/color_invert/
+    - assets/nosmai_filters/khaby_lame/
+    - assets/nosmai_filters/your_filter_name/
 ```
 
 > **Note:** See [example/pubspec.yaml](example/pubspec.yaml) for reference implementation.

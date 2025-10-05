@@ -1440,13 +1440,13 @@
       continue;
     }
 
-    NSString *manifestAssetKey = [FlutterDartProject lookupKeyForAsset:[NSString stringWithFormat:@"assets/Nosmai_Filters/%@/%@_manifest.json", filterName, filterName]];
+    NSString *manifestAssetKey = [FlutterDartProject lookupKeyForAsset:[NSString stringWithFormat:@"assets/nosmai_filters/%@/%@_manifest.json", filterName, filterName]];
     NSString *manifestPath = [[NSBundle mainBundle] pathForResource:manifestAssetKey ofType:nil];
 
-    NSString *nosmaiAssetKey = [FlutterDartProject lookupKeyForAsset:[NSString stringWithFormat:@"assets/Nosmai_Filters/%@/%@.nosmai", filterName, filterName]];
+    NSString *nosmaiAssetKey = [FlutterDartProject lookupKeyForAsset:[NSString stringWithFormat:@"assets/nosmai_filters/%@/%@.nosmai", filterName, filterName]];
     NSString *nosmaiPath = [[NSBundle mainBundle] pathForResource:nosmaiAssetKey ofType:nil];
 
-    NSString *previewAssetKey = [FlutterDartProject lookupKeyForAsset:[NSString stringWithFormat:@"assets/Nosmai_Filters/%@/%@_preview.png", filterName, filterName]];
+    NSString *previewAssetKey = [FlutterDartProject lookupKeyForAsset:[NSString stringWithFormat:@"assets/nosmai_filters/%@/%@_preview.png", filterName, filterName]];
     NSString *previewPath = [[NSBundle mainBundle] pathForResource:previewAssetKey ofType:nil];
 
     if (!nosmaiPath || ![[NSFileManager defaultManager] fileExistsAtPath:nosmaiPath]) {
@@ -1994,9 +1994,9 @@
 
   NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
   NSArray *potentialPaths = @[
-    @"flutter_assets/assets/Nosmai_Filters",
-    @"Frameworks/App.framework/flutter_assets/assets/Nosmai_Filters",
-    @"assets/Nosmai_Filters"
+    @"flutter_assets/assets/nosmai_filters",
+    @"Frameworks/App.framework/flutter_assets/assets/nosmai_filters",
+    @"assets/nosmai_filters"
   ];
 
   for (NSString *relativePath in potentialPaths) {
@@ -2033,10 +2033,10 @@
     NSArray *allPaths = [mainBundle pathsForResourcesOfType:@"json" inDirectory:nil];
 
     for (NSString *path in allPaths) {
-      if ([path containsString:@"manifest.json"] && [path containsString:@"Nosmai_Filters"]) {
+      if ([path containsString:@"manifest.json"] && [path containsString:@"nosmai_filters"]) {
         NSArray *components = [path componentsSeparatedByString:@"/"];
         for (NSInteger i = 0; i < components.count - 1; i++) {
-          if ([components[i] isEqualToString:@"Nosmai_Filters"] && i + 1 < components.count) {
+          if ([components[i] isEqualToString:@"nosmai_filters"] && i + 1 < components.count) {
             NSString *fileName = components.lastObject;
 
             if ([fileName hasSuffix:@"_manifest.json"]) {

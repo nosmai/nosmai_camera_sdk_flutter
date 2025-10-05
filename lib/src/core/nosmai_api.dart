@@ -122,7 +122,7 @@ class NosmaiFlutter {
     print('║  📢 The old "assets/filters/" structure has been DEPRECATED           ║');
     print('║                                                                        ║');
     print('║  ✅ New filter structure:                                             ║');
-    print('║     assets/Nosmai_Filters/{filter_name}/                              ║');
+    print('║     assets/nosmai_filters/{filter_name}/                              ║');
     print('║       ├── {filter_name}_manifest.json                                 ║');
     print('║       ├── {filter_name}_preview.png                                   ║');
     print('║       └── {filter_name}.nosmai                                        ║');
@@ -860,7 +860,7 @@ class NosmaiFlutter {
         print('║     1. Remove all filters from "assets/filters/" directory            ║');
         print('║     2. Download new filters from Nosmai Official Assets Store         ║');
         print('║     3. Place them in the new structure:                               ║');
-        print('║        assets/Nosmai_Filters/{filter_name}/                           ║');
+        print('║        assets/nosmai_filters/{filter_name}/                           ║');
         print('║          ├── {filter_name}_manifest.json                              ║');
         print('║          ├── {filter_name}_preview.png                                ║');
         print('║          └── {filter_name}.nosmai                                     ║');
