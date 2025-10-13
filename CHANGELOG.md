@@ -1,3 +1,8 @@
+## 3.0.2
+- **FIXED**: Resolved native library bugs to improve overall SDK stability and performance  
+- **FIXED**: Flashlight issue resolved in plugin for both iOS and Android platforms  
+
+
 ## 3.0.1
 - **CHANGE**: Filter directory path updated for better consistency
   - Changed filter path from `assets/Nosmai_Filters/` to `assets/nosmai_filters/` (lowercase)

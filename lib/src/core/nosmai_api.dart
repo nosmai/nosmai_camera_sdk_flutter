@@ -755,6 +755,184 @@ class NosmaiFlutter {
     return await NosmaiFlutterPlatform.instance.getTorchMode();
   }
 
+  // Effect Parameter Control Methods
+  /// Get all available parameters for the currently loaded effect
+  ///
+  /// Returns a list of [FilterParameter] objects containing metadata about
+  /// each adjustable parameter in the active .nosmai filter.
+  ///
+  /// Returns an empty list if:
+  /// - No effect is currently active
+  /// - The active effect has no adjustable parameters
+  /// - An error occurs during retrieval
+  ///
+  /// Example:
+  /// ```dart
+  /// final params = await nosmai.getEffectParameters();
+  /// for (var param in params) {
+  ///   print('Parameter: ${param.name}, Type: ${param.type}, Default: ${param.defaultValue}');
+  /// }
+  /// ```
+  Future<List<FilterParameter>> getEffectParameters() async {
+    _checkInitialized();
+    try {
+      final List<dynamic> parameters =
+          await NosmaiFlutterPlatform.instance.getEffectParameters();
+      return parameters
+          .map((param) =>
+              FilterParameter.fromMap(Map<String, dynamic>.from(param)))
+          .toList();
+    } on PlatformException catch (e) {
+      throw NosmaiError.filter(
+        type: _parseErrorType(e.code),
+        message: e.message ?? 'Failed to get effect parameters',
+        details: e.details?.toString(),
+      );
+    } catch (e) {
+      _errorController?.add(NosmaiError.general(
+        type: NosmaiErrorType.platformError,
+        message: 'Failed to get effect parameters',
+        details: e.toString(),
+        originalError: e,
+      ));
+      // Return empty list instead of throwing to allow app to continue
+      return [];
+    }
+  }
+
+  /// Get the current value of a specific parameter in the active effect
+  ///
+  /// Returns the current float value of the specified parameter.
+  /// Returns 0.0 if:
+  /// - Parameter is not found
+  /// - No effect is currently active
+  /// - An error occurs during retrieval
+  ///
+  /// [parameterName] The name of the parameter to query
+  ///
+  /// Example:
+  /// ```dart
+  /// final intensity = await nosmai.getEffectParameterValue('intensity');
+  /// print('Current intensity: $intensity');
+  /// ```
+  Future<double> getEffectParameterValue(String parameterName) async {
+    _checkInitialized();
+    try {
+      final value = await NosmaiFlutterPlatform.instance
+          .getEffectParameterValue(parameterName);
+      return value;
+    } on PlatformException catch (e) {
+      throw NosmaiError.filter(
+        type: _parseErrorType(e.code),
+        message: e.message ?? 'Failed to get effect parameter value',
+        details: e.details?.toString(),
+      );
+    } catch (e) {
+      _errorController?.add(NosmaiError.general(
+        type: NosmaiErrorType.platformError,
+        message: 'Failed to get effect parameter value',
+        details: e.toString(),
+        originalError: e,
+      ));
+      // Return 0.0 instead of throwing to allow app to continue
+      return 0.0;
+    }
+  }
+
+  /// Set a float parameter value for the currently loaded effect
+  ///
+  /// Updates the specified parameter with a new value in real-time.
+  /// The change is applied immediately to the active filter.
+  ///
+  /// Returns true if successful, false if:
+  /// - Parameter is not found
+  /// - No effect is currently active
+  /// - Parameter type is not float
+  /// - An error occurs during update
+  ///
+  /// [parameterName] The name of the parameter to set
+  /// [value] The float value to set
+  ///
+  /// Example:
+  /// ```dart
+  /// // Set intensity to 0.8
+  /// final success = await nosmai.setEffectParameter('intensity', 0.8);
+  /// if (success) {
+  ///   print('Parameter updated successfully');
+  /// }
+  /// ```
+  Future<bool> setEffectParameter(String parameterName, double value) async {
+    _checkInitialized();
+    try {
+      final success = await NosmaiFlutterPlatform.instance
+          .setEffectParameter(parameterName, value);
+      return success;
+    } on PlatformException catch (e) {
+      throw NosmaiError.filter(
+        type: _parseErrorType(e.code),
+        message: e.message ?? 'Failed to set effect parameter',
+        details: e.details?.toString(),
+      );
+    } catch (e) {
+      _errorController?.add(NosmaiError.general(
+        type: NosmaiErrorType.platformError,
+        message: 'Failed to set effect parameter',
+        details: e.toString(),
+        originalError: e,
+      ));
+      // Return false instead of throwing to allow app to continue
+      return false;
+    }
+  }
+
+  /// Set a string parameter value for the currently loaded effect
+  ///
+  /// Updates the specified string parameter with a new value in real-time.
+  /// This is useful for text overlays, captions, and other string-based parameters.
+  /// The change is applied immediately to the active filter.
+  ///
+  /// Returns true if successful, false if:
+  /// - Parameter is not found
+  /// - No effect is currently active
+  /// - Parameter type is not string
+  /// - An error occurs during update
+  ///
+  /// [parameterName] The name of the parameter to set
+  /// [value] The string value to set
+  ///
+  /// Example:
+  /// ```dart
+  /// // Set header text to "Hello World"
+  /// final success = await nosmai.setEffectParameterString('headerText', 'Hello World');
+  /// if (success) {
+  ///   print('Text updated successfully');
+  /// }
+  /// ```
+  Future<bool> setEffectParameterString(
+      String parameterName, String value) async {
+    _checkInitialized();
+    try {
+      final success = await NosmaiFlutterPlatform.instance
+          .setEffectParameterString(parameterName, value);
+      return success;
+    } on PlatformException catch (e) {
+      throw NosmaiError.filter(
+        type: _parseErrorType(e.code),
+        message: e.message ?? 'Failed to set effect parameter string',
+        details: e.details?.toString(),
+      );
+    } catch (e) {
+      _errorController?.add(NosmaiError.general(
+        type: NosmaiErrorType.platformError,
+        message: 'Failed to set effect parameter string',
+        details: e.toString(),
+        originalError: e,
+      ));
+      // Return false instead of throwing to allow app to continue
+      return false;
+    }
+  }
+
   /// Dispose of stream controllers and clean up all resources
   void dispose() {
     if (_isDisposed) return;

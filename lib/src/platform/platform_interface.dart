@@ -264,6 +264,29 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
     throw UnimplementedError('getTorchMode() has not been implemented.');
   }
 
+  // Effect Parameter Control Methods
+  /// Get all available parameters for the currently loaded effect
+  Future<List<dynamic>> getEffectParameters() {
+    throw UnimplementedError('getEffectParameters() has not been implemented.');
+  }
+
+  /// Get the current value of a specific parameter
+  Future<double> getEffectParameterValue(String parameterName) {
+    throw UnimplementedError(
+        'getEffectParameterValue() has not been implemented.');
+  }
+
+  /// Set a float parameter value for the currently loaded effect
+  Future<bool> setEffectParameter(String parameterName, double value) {
+    throw UnimplementedError('setEffectParameter() has not been implemented.');
+  }
+
+  /// Set a string parameter value for the currently loaded effect
+  Future<bool> setEffectParameterString(String parameterName, String value) {
+    throw UnimplementedError(
+        'setEffectParameterString() has not been implemented.');
+  }
+
   // Android Texture-based preview helpers (no-ops on iOS)
   /// Create a native SurfaceTexture and return its textureId (Android only)
   Future<int?> createPreviewTexture({double? width, double? height}) {

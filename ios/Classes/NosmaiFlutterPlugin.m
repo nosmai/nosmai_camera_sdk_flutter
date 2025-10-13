@@ -19,6 +19,9 @@
 @property(nonatomic, strong) dispatch_semaphore_t cameraStateSemaphore;
 @property(nonatomic, strong) dispatch_queue_t cacheQueue;
 @property(nonatomic, strong) dispatch_semaphore_t filterOperationSemaphore;
+// Flash and Torch state tracking (NosmaiCamera doesn't provide getters)
+@property(nonatomic, assign) AVCaptureFlashMode currentFlashMode;
+@property(nonatomic, assign) AVCaptureTorchMode currentTorchMode;
 @end
 
 @implementation NosmaiFlutterPlugin
@@ -41,16 +44,20 @@
   if (self) {
     _isInitialized = NO;
     _isCameraAttached = NO;
-    
+
     _filterCache = [[NSCache alloc] init];
-    _filterCache.countLimit = 100; 
-    _filterCache.totalCostLimit = 50 * 1024 * 1024; 
-    
+    _filterCache.countLimit = 100;
+    _filterCache.totalCostLimit = 50 * 1024 * 1024;
+
     _cameraStateSemaphore = dispatch_semaphore_create(1);
-    
+
     _cacheQueue = dispatch_queue_create("com.nosmai.cache", DISPATCH_QUEUE_CONCURRENT);
-    
+
     _filterOperationSemaphore = dispatch_semaphore_create(1);
+
+    // Initialize flash/torch state to off
+    _currentFlashMode = AVCaptureFlashModeOff;
+    _currentTorchMode = AVCaptureTorchModeOff;
   }
   return self;
 }
@@ -216,6 +223,18 @@
   }
   else if ([@"getTorchMode" isEqualToString:method]) {
     [self handleGetTorchMode:call result:result];
+  }
+  else if ([@"getEffectParameters" isEqualToString:method]) {
+    [self handleGetEffectParameters:call result:result];
+  }
+  else if ([@"getEffectParameterValue" isEqualToString:method]) {
+    [self handleGetEffectParameterValue:call result:result];
+  }
+  else if ([@"setEffectParameter" isEqualToString:method]) {
+    [self handleSetEffectParameter:call result:result];
+  }
+  else if ([@"setEffectParameterString" isEqualToString:method]) {
+    [self handleSetEffectParameterString:call result:result];
   }
   else {
     result(FlutterMethodNotImplemented);
@@ -2233,6 +2252,10 @@
   
   @try {
     BOOL success = [[NosmaiCore shared].camera setFlashMode:flashMode];
+    if (success) {
+      // Update internal state tracking
+      self.currentFlashMode = flashMode;
+    }
     result(@(success));
   } @catch (NSException *exception) {
     result([FlutterError errorWithCode:@"FLASH_ERROR"
@@ -2268,6 +2291,10 @@
   
   @try {
     BOOL success = [[NosmaiCore shared].camera setTorchMode:torchMode];
+    if (success) {
+      // Update internal state tracking
+      self.currentTorchMode = torchMode;
+    }
     result(@(success));
   } @catch (NSException *exception) {
     result([FlutterError errorWithCode:@"TORCH_ERROR"
@@ -2283,14 +2310,31 @@
                                details:nil]);
     return;
   }
-  
+
   @try {
+    // Check if device has flash capability
     BOOL hasFlash = [[NosmaiCore shared].camera hasFlash];
-    if (hasFlash) {
-      result(@"off"); 
-    } else {
-      result(@"off"); 
+    if (!hasFlash) {
+      result(@"off");
+      return;
     }
+
+    // Return internally tracked flash mode (NosmaiCamera doesn't provide getter)
+    NSString *modeString;
+    switch (self.currentFlashMode) {
+      case AVCaptureFlashModeOn:
+        modeString = @"on";
+        break;
+      case AVCaptureFlashModeAuto:
+        modeString = @"auto";
+        break;
+      case AVCaptureFlashModeOff:
+      default:
+        modeString = @"off";
+        break;
+    }
+
+    result(modeString);
   } @catch (NSException *exception) {
     result([FlutterError errorWithCode:@"FLASH_ERROR"
                                message:@"Failed to get flash mode"
@@ -2305,17 +2349,200 @@
                                details:nil]);
     return;
   }
-  
+
   @try {
+    // Check if device has torch capability
     BOOL hasTorch = [[NosmaiCore shared].camera hasTorch];
-    if (hasTorch) {
+    if (!hasTorch) {
       result(@"off");
-    } else {
-      result(@"off"); 
+      return;
     }
+
+    // Return internally tracked torch mode (NosmaiCamera doesn't provide getter)
+    NSString *modeString;
+    switch (self.currentTorchMode) {
+      case AVCaptureTorchModeOn:
+        modeString = @"on";
+        break;
+      case AVCaptureTorchModeAuto:
+        modeString = @"auto";
+        break;
+      case AVCaptureTorchModeOff:
+      default:
+        modeString = @"off";
+        break;
+    }
+
+    result(modeString);
   } @catch (NSException *exception) {
     result([FlutterError errorWithCode:@"TORCH_ERROR"
                                message:@"Failed to get torch mode"
+                               details:exception.reason]);
+  }
+}
+
+#pragma mark - Effect Parameter Control
+
+- (void)handleGetEffectParameters:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK not initialized"
+                               details:nil]);
+    return;
+  }
+
+  @try {
+    // Get parameters from active effect using NosmaiSDK
+    NSArray<NSDictionary*>* parameters = [[NosmaiSDK sharedInstance] getEffectParameters];
+
+    if (parameters == nil) {
+      // No effect is currently active or no parameters available
+      result(@[]);
+      return;
+    }
+
+    // Convert NSArray to format expected by Flutter
+    NSMutableArray* flutterParameters = [NSMutableArray arrayWithCapacity:parameters.count];
+
+    for (NSDictionary* param in parameters) {
+      NSMutableDictionary* flutterParam = [NSMutableDictionary dictionary];
+
+      // Extract parameter information
+      if (param[@"name"]) {
+        flutterParam[@"name"] = param[@"name"];
+      }
+
+      if (param[@"type"]) {
+        flutterParam[@"type"] = param[@"type"];
+      }
+
+      if (param[@"defaultValue"]) {
+        flutterParam[@"defaultValue"] = param[@"defaultValue"];
+      }
+
+      if (param[@"passId"]) {
+        flutterParam[@"passId"] = param[@"passId"];
+      }
+
+      [flutterParameters addObject:flutterParam];
+    }
+
+    result(flutterParameters);
+
+  } @catch (NSException *exception) {
+    result([FlutterError errorWithCode:@"EFFECT_PARAMETER_ERROR"
+                               message:@"Failed to get effect parameters"
+                               details:exception.reason]);
+  }
+}
+
+- (void)handleGetEffectParameterValue:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK not initialized"
+                               details:nil]);
+    return;
+  }
+
+  NSString* parameterName = call.arguments[@"parameterName"];
+  if (parameterName == nil || [parameterName length] == 0) {
+    result([FlutterError errorWithCode:@"INVALID_PARAMETER"
+                               message:@"Parameter name is required"
+                               details:nil]);
+    return;
+  }
+
+  @try {
+    // Get parameter value from active effect using NosmaiSDK
+    float value = [[NosmaiSDK sharedInstance] getEffectParameterValue:parameterName];
+
+    // Return the value as NSNumber
+    result(@(value));
+
+  } @catch (NSException *exception) {
+    result([FlutterError errorWithCode:@"EFFECT_PARAMETER_ERROR"
+                               message:@"Failed to get effect parameter value"
+                               details:exception.reason]);
+  }
+}
+
+- (void)handleSetEffectParameter:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK not initialized"
+                               details:nil]);
+    return;
+  }
+
+  NSString* parameterName = call.arguments[@"parameterName"];
+  NSNumber* valueNumber = call.arguments[@"value"];
+
+  if (parameterName == nil || [parameterName length] == 0) {
+    result([FlutterError errorWithCode:@"INVALID_PARAMETER"
+                               message:@"Parameter name is required"
+                               details:nil]);
+    return;
+  }
+
+  if (valueNumber == nil) {
+    result([FlutterError errorWithCode:@"INVALID_PARAMETER"
+                               message:@"Parameter value is required"
+                               details:nil]);
+    return;
+  }
+
+  @try {
+    // Convert NSNumber to float
+    float value = [valueNumber floatValue];
+
+    // Set parameter value using NosmaiSDK
+    BOOL success = [[NosmaiSDK sharedInstance] setEffectParameter:parameterName value:value];
+
+    // Return success status
+    result(@(success));
+
+  } @catch (NSException *exception) {
+    result([FlutterError errorWithCode:@"EFFECT_PARAMETER_ERROR"
+                               message:@"Failed to set effect parameter"
+                               details:exception.reason]);
+  }
+}
+
+- (void)handleSetEffectParameterString:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK not initialized"
+                               details:nil]);
+    return;
+  }
+
+  NSString* parameterName = call.arguments[@"parameterName"];
+  NSString* value = call.arguments[@"value"];
+
+  if (parameterName == nil || [parameterName length] == 0) {
+    result([FlutterError errorWithCode:@"INVALID_PARAMETER"
+                               message:@"Parameter name is required"
+                               details:nil]);
+    return;
+  }
+
+  if (value == nil) {
+    result([FlutterError errorWithCode:@"INVALID_PARAMETER"
+                               message:@"Parameter value is required"
+                               details:nil]);
+    return;
+  }
+
+  @try {
+    // Set string parameter value using NosmaiSDK
+    BOOL success = [[NosmaiSDK sharedInstance] setEffectParameter:parameterName stringValue:value];
+
+    // Return success status
+    result(@(success));
+
+  } @catch (NSException *exception) {
+    result([FlutterError errorWithCode:@"EFFECT_PARAMETER_ERROR"
+                               message:@"Failed to set effect parameter string"
                                details:exception.reason]);
   }
 }

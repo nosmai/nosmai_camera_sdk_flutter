@@ -736,6 +736,60 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     }
   }
 
+  // Effect Parameter Control Methods
+  @override
+  Future<List<dynamic>> getEffectParameters() async {
+    try {
+      final result =
+          await methodChannel.invokeMethod<List<dynamic>>('getEffectParameters');
+      return result ?? [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  @override
+  Future<double> getEffectParameterValue(String parameterName) async {
+    try {
+      final result =
+          await methodChannel.invokeMethod<double>('getEffectParameterValue', {
+        'parameterName': parameterName,
+      });
+      return result ?? 0.0;
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  @override
+  Future<bool> setEffectParameter(String parameterName, double value) async {
+    try {
+      final result =
+          await methodChannel.invokeMethod<bool>('setEffectParameter', {
+        'parameterName': parameterName,
+        'value': value,
+      });
+      return result ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> setEffectParameterString(
+      String parameterName, String value) async {
+    try {
+      final result = await methodChannel
+          .invokeMethod<bool>('setEffectParameterString', {
+        'parameterName': parameterName,
+        'value': value,
+      });
+      return result ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // Android Texture-based preview helpers
   @override
   Future<int?> createPreviewTexture({double? width, double? height}) async {

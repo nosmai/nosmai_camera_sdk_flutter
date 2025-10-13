@@ -361,3 +361,44 @@ class NosmaiPhotoResult {
     };
   }
 }
+
+/// Effect parameter information from active .nosmai filter
+///
+/// Represents a single adjustable parameter in the currently loaded effect.
+/// Each parameter has metadata including name, type, default value, and pass ID.
+class FilterParameter {
+  final String name;
+  final String type;
+  final dynamic defaultValue;
+  final int passId;
+
+  const FilterParameter({
+    required this.name,
+    required this.type,
+    required this.defaultValue,
+    required this.passId,
+  });
+
+  factory FilterParameter.fromMap(Map<String, dynamic> map) {
+    return FilterParameter(
+      name: map['name']?.toString() ?? '',
+      type: map['type']?.toString() ?? 'float',
+      defaultValue: map['defaultValue'],
+      passId: _parseIntSafely(map['passId']) ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'type': type,
+      'defaultValue': defaultValue,
+      'passId': passId,
+    };
+  }
+
+  @override
+  String toString() {
+    return 'FilterParameter(name: $name, type: $type, defaultValue: $defaultValue, passId: $passId)';
+  }
+}

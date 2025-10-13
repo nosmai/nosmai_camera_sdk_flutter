@@ -72,6 +72,10 @@ public class Camera2Helper {
     private boolean stopped = false;
     private Runnable retryRunnable;
 
+    // Flash and Torch state
+    private int flashMode = CaptureRequest.FLASH_MODE_OFF;
+    private int torchMode = CaptureRequest.FLASH_MODE_OFF;
+
     public Camera2Helper(Context context, boolean isFront) {
         this.context = context.getApplicationContext();
         this.requestFront = isFront;
@@ -105,6 +109,64 @@ public class Camera2Helper {
     // Allow changing facing without recreating helper to speed up switches
     public void setFacing(boolean isFront) {
         this.currentFacing = isFront ? CameraCharacteristics.LENS_FACING_FRONT : CameraCharacteristics.LENS_FACING_BACK;
+    }
+
+    // Flash and Torch control methods
+    public void setFlashMode(int mode) {
+        this.flashMode = mode;
+        updateCaptureRequest();
+    }
+
+    public int getFlashMode() {
+        return this.flashMode;
+    }
+
+    public void setTorchMode(int mode) {
+        this.torchMode = mode;
+        updateCaptureRequest();
+    }
+
+    public int getTorchMode() {
+        return this.torchMode;
+    }
+
+    private void updateCaptureRequest() {
+        if (captureSession != null && cameraDevice != null) {
+            try {
+                CaptureRequest.Builder req = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+                if (imageReader != null) {
+                    req.addTarget(imageReader.getSurface());
+                }
+                if (previewSurface != null) {
+                    req.addTarget(previewSurface);
+                }
+
+                // Apply flash mode
+                req.set(CaptureRequest.FLASH_MODE, flashMode);
+
+                // Apply torch mode (using CONTROL_AE_MODE)
+                if (torchMode == CaptureRequest.FLASH_MODE_TORCH) {
+                    req.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
+                    req.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
+                } else {
+                    req.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+                }
+
+                // Standard settings
+                try {
+                    req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(15, 30));
+                } catch (Exception ignored) {
+                }
+                try {
+                    req.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                } catch (Exception ignored) {
+                }
+
+                captureSession.setRepeatingRequest(req.build(), null, bgHandler);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to update capture request with flash/torch settings", e);
+            }
+        }
     }
 
     public void setTargetDimensions(int width, int height) {
@@ -301,6 +363,17 @@ public class Camera2Helper {
                 public void onConfigured(@NonNull CameraCaptureSession session) {
                     captureSession = session;
                     try {
+                        // Apply flash mode
+                        req.set(CaptureRequest.FLASH_MODE, flashMode);
+
+                        // Apply torch mode
+                        if (torchMode == CaptureRequest.FLASH_MODE_TORCH) {
+                            req.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
+                            req.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
+                        } else {
+                            req.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+                        }
+
                         try {
                             req.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(15, 30));
                         } catch (Exception ignored) {

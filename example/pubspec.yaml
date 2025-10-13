@@ -63,9 +63,9 @@ flutter:
   #   - {filter_name}_preview.png
   #   - {filter_name}.nosmai
   assets:
-    - assets/nosmai_filters/color_invert/
-    - assets/nosmai_filters/khaby_lame/
-  #   - assets/nosmai_filters/text_filter/
+    # - assets/nosmai_filters/color_invert/
+    # - assets/nosmai_filters/khaby_lame/
+    # - assets/nosmai_filters/text_filter/
     # - assets/filters/
     # Add more filters here as: - assets/nosmai_filters/{filter_name}/
 

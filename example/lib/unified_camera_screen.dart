@@ -1,5 +1,6 @@
 // ignore_for_file: avoid_print, use_build_context_synchronously
 import 'dart:convert' show json;
+import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -908,78 +909,188 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
     }
   }
 
+  Future<void> testFlash() async {
+    print('🔦 Flash Test Started!');
+    try {
+      // Set to ON
+      print('Setting flash to ON...');
+      bool success = await _nosmai.setFlashMode(NosmaiFlashMode.on);
+      print(success ? '✅ Flash set to ON' : '❌ Failed to set flash to ON');
+      final modeAfterOn = await _nosmai.getFlashMode();
+      print('   Verified: ${modeAfterOn.name}');
+
+      await Future.delayed(const Duration(seconds: 1));
+
+      // Set to AUTO
+      print('\nSetting flash to AUTO...');
+      success = await _nosmai.setFlashMode(NosmaiFlashMode.auto);
+      print(success ? '✅ Flash set to AUTO' : '❌ Failed to set flash to AUTO');
+      final modeAfterAuto = await _nosmai.getFlashMode();
+      print('   Verified: ${modeAfterAuto.name}');
+
+      await Future.delayed(const Duration(seconds: 1));
+
+      // Set to OFF
+      print('\nSetting flash to OFF...');
+      success = await _nosmai.setFlashMode(NosmaiFlashMode.off);
+      print(success ? '✅ Flash set to OFF' : '❌ Failed to set flash to OFF');
+      final modeAfterOff = await _nosmai.getFlashMode();
+      print('   Verified: ${modeAfterOff.name}');
+
+      // Test Torch Mode
+      print('\n🔦 Testing Torch Mode...');
+
+      // Set torch to ON
+      print('Setting torch to ON...');
+      success = await _nosmai.setTorchMode(NosmaiTorchMode.on);
+      print(success ? '✅ Torch set to ON' : '❌ Failed to set torch to ON');
+      final torchAfterOn = await _nosmai.getTorchMode();
+      print('   Verified: ${torchAfterOn.name}');
+
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Set torch to OFF
+      print('\nSetting torch to OFF...');
+      success = await _nosmai.setTorchMode(NosmaiTorchMode.off);
+      print(success ? '✅ Torch set to OFF' : '❌ Failed to set torch to OFF');
+      final torchAfterOff = await _nosmai.getTorchMode();
+      print('   Verified: ${torchAfterOff.name}');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Flash/Torch test completed! Check console.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      print('\n✅ Flash Test Complete!');
+    } catch (e) {
+      print('❌ Flash Test Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Flash Test Error: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> testFilter() async {
+    print("================= ${await hasOldFilterStructure()}");
+    print('🔘 FloatingActionButton pressed!');
+    try {
+      // Get local filters from nosmai_filters structure
+      final localFilters = await _nosmai.getLocalFilters();
+
+      print('📊 Local Filters (nosmai_filters): ${localFilters.length}');
+
+      if (localFilters.isNotEmpty) {
+        print('✅ Success!');
+        print('   Filter Count: ${localFilters.length}');
+
+        // Print all filters with their metadata
+        for (var i = 0; i < localFilters.length; i++) {
+          final filter = localFilters[i];
+          print('\n📋 Filter ${i + 1}:');
+          print('   - ID: ${filter.id}');
+          print('   - Name: ${filter.name}');
+          print('   - Display Name: ${filter.displayName}');
+          print('   - Description: ${filter.description}');
+          print('   - Filter Type: ${filter.sourceType.name}');
+          print('   - Version: ${filter.version}');
+          print('   - Author: ${filter.author}');
+          print('   - Tags: ${filter.tags}');
+          print('   - Path: ${filter.path}');
+        }
+
+        // Show snackbar
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Found ${localFilters.length} local filters',
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+
+          // Apply text filter (localFilters[2])
+          await _nosmai.applyFilter(localFilters[1].path);
+          print('✅ Text filter applied!');
+
+          // Wait 2 seconds
+          await Future.delayed(const Duration(seconds: 2));
+
+          // Get parameters
+          List<FilterParameter> params = await _nosmai.getEffectParameters();
+          print('📋 Found ${params.length} parameters');
+
+          // Update text parameter
+          for (var param in params) {
+            print('\nParameter: ${param.name} (${param.type})');
+
+            if (param.type == 'string' && param.name == 'headerText') {
+              // Change text to "Nosmai Rocks! 🚀"
+              final success = await _nosmai.setEffectParameterString(
+                param.name,
+                'Nosmai Rocks! 🚀',
+              );
+
+              if (success) {
+                print('✅ Text updated successfully to: "Nosmai Rocks! 🚀"');
+              } else {
+                print('❌ Failed to update text');
+              }
+            }
+
+            if (param.type == 'float') {
+              final currentValue =
+                  await _nosmai.getEffectParameterValue(param.name);
+              print('  Current ${param.name}: $currentValue');
+            }
+          }
+        }
+      } else {
+        print('❌ No filters found');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No local filters found'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ Error calling getLocalFilters: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          print("================= ${await hasOldFilterStructure()}");
-          print('🔘 FloatingActionButton pressed!');
-          try {
-            // Get local filters from nosmai_filters structure
-            final localFilters = await _nosmai.getLocalFilters();
-
-            print('📊 Local Filters (nosmai_filters): ${localFilters.length}');
-
-            if (localFilters.isNotEmpty) {
-              print('✅ Success!');
-              print('   Filter Count: ${localFilters.length}');
-
-              // Print all filters with their metadata
-              for (var i = 0; i < localFilters.length; i++) {
-                final filter = localFilters[i];
-                print('\n📋 Filter ${i + 1}:');
-                print('   - ID: ${filter.id}');
-                print('   - Name: ${filter.name}');
-                print('   - Display Name: ${filter.displayName}');
-                print('   - Description: ${filter.description}');
-                print('   - Filter Type: ${filter.sourceType.name}');
-                print('   - Version: ${filter.version}');
-                print('   - Author: ${filter.author}');
-                print('   - Tags: ${filter.tags}');
-                print('   - Path: ${filter.path}');
-              }
-
-              // Show snackbar
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Found ${localFilters.length} local filters',
-                    ),
-                    backgroundColor: Colors.green,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-
-                // Apply first filter
-                _nosmai.applyFilter(localFilters[0].path);
-              }
-            } else {
-              print('❌ No filters found');
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('No local filters found'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            }
-          } catch (e) {
-            print('❌ Error calling getLocalFilters: $e');
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error: $e'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
+          // await testFlash();
+          await testFilter();
         },
-        child: const Icon(Icons.filter_vintage),
+        child: const Icon(Icons.flash_on),
       ),
       body: Stack(
         children: [
