@@ -63,7 +63,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  nosmai_camera_sdk: ^3.0.0
+  nosmai_camera_sdk: ^3.0.3
 ```
 
 ## Setup
@@ -172,7 +172,7 @@ if (recordResult.success) {
 
 ## API Documentation
 
-For detailed API documentation, filter examples, and advanced usage, visit our website: [https://docs-sdk.nosmai.com](https://docs-sdk.nosmai.com)
+For detailed API documentation, filter examples, and advanced usage, visit our website: [https://effects.nosmai.com/platforms/flutter/overview](https://effects.nosmai.com/platforms/flutter/overview)
 
 
 ## Support
@@ -184,7 +184,7 @@ For detailed API documentation, filter examples, and advanced usage, visit our w
 ## License Registration
 
 To use the Nosmai SDK, you need to register and get a license key from:
-**[https://portal.camerasdk.nosmai.com/](https://portal.camerasdk.nosmai.com/)**
+**[https://effects.nosmai.com/](https://effects.nosmai.com/)**
 
 ## License
 
