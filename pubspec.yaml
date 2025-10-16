@@ -1,6 +1,6 @@
 name: nosmai_camera_sdk
 description: A Flutter plugin for Nosmai SDK - Real-time video filtering and beauty effects
-version: 3.0.2+1
+version: 3.0.3
 homepage: https://github.com/nosmai/nosmai_camera_sdk_flutter
 repository: https://github.com/nosmai/nosmai_camera_sdk_flutter
 documentation: https://github.com/nosmai/nosmai_camera_sdk_flutter#readme
