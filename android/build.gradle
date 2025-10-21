@@ -51,8 +51,6 @@ android {
     }
 
     dependencies {
-        // Rely on host app to provide the AAR via flatDir (app/libs)
-        // This avoids AGP error for bundling local AARs inside a plugin AAR.
         compileOnly(name: 'nosmai-release', ext: 'aar')
 
         // Test dependencies

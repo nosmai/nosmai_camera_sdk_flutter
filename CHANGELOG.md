@@ -1,3 +1,6 @@
+## 3.0.4
+- **FIXED**: iOS camera dispose issue resolved to prevent crashes and ensure proper resource release
+
 ## 3.0.3
 - **FIXED**: Resolve AAR library issue  
 
