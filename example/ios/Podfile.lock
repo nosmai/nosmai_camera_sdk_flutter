@@ -4,8 +4,6 @@ PODS:
     - Flutter
   - nosmai_camera_sdk (2.0.2):
     - Flutter
-    - NosmaiCameraSDK (~> 2.0.2)
-  - NosmaiCameraSDK (2.0.2)
   - permission_handler_apple (9.3.0):
     - Flutter
 
@@ -14,10 +12,6 @@ DEPENDENCIES:
   - integration_test (from `.symlinks/plugins/integration_test/ios`)
   - nosmai_camera_sdk (from `.symlinks/plugins/nosmai_camera_sdk/ios`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
-
-SPEC REPOS:
-  trunk:
-    - NosmaiCameraSDK
 
 EXTERNAL SOURCES:
   Flutter:
@@ -32,8 +26,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
   integration_test: 252f60fa39af5e17c3aa9899d35d908a0721b573
-  nosmai_camera_sdk: 4899f224d94de5e4a2c443fad34aa1b57730df7a
-  NosmaiCameraSDK: 6b96c815940aefd0d4e2f688b4ffb4428909c67b
+  nosmai_camera_sdk: 08cd3c637dcb68bacf4b4a2f62aa53733c62b3ee
   permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
 
 PODFILE CHECKSUM: 8ae12940ed56656822209d3777ba9b9fe1e1becd

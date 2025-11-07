@@ -246,6 +246,26 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
     }
   }
 
+  @override
+  Future<bool> pauseCamera() async {
+    try {
+      final result = await methodChannel.invokeMethod<bool>('pauseCamera');
+      return result ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> resumeCamera() async {
+    try {
+      final result = await methodChannel.invokeMethod<bool>('resumeCamera');
+      return result ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // New Advanced Features Implementation
   @override
   Future<bool> applyEffect(String effectPath) async {

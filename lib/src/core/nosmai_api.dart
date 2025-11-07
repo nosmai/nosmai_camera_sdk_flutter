@@ -459,7 +459,8 @@ class NosmaiFlutter {
   Future<void> cleanup() async {
     if (_isDisposed) return;
 
-    _isDisposed = true;
+    // ✅ DON'T set _isDisposed here - this is called during re-initialization
+    // Only dispose() should set _isDisposed = true
 
     try {
       if (_isRecording) {
@@ -487,6 +488,42 @@ class NosmaiFlutter {
       _activeOperations.clear();
     } catch (e) {
       // Cleanup error ignored
+    }
+  }
+
+  /// Pause camera hardware
+  ///
+  /// Only stops the camera hardware while keeping SDK processing active.
+  /// This is faster than cleanup() and allows instant resume.
+  /// Use this for temporary tab switches (e.g., navigation between tabs).
+  ///
+  /// Returns true if paused successfully, false otherwise.
+  Future<bool> pauseCamera() async {
+    _checkInitialized();
+
+    try {
+      final result = await NosmaiFlutterPlatform.instance.pauseCamera();
+      return result == true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Resume camera hardware
+  ///
+  /// Only restarts the camera hardware, SDK processing already active.
+  /// This provides instant camera restart after pauseCamera().
+  /// Use this when returning to camera tab after temporary navigation.
+  ///
+  /// Returns true if resumed successfully, false otherwise.
+  Future<bool> resumeCamera() async {
+    _checkInitialized();
+
+    try {
+      final result = await NosmaiFlutterPlatform.instance.resumeCamera();
+      return result == true;
+    } catch (e) {
+      return false;
     }
   }
 

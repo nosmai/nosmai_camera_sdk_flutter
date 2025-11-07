@@ -49,6 +49,7 @@ import com.nosmai.effect.api.NosmaiBeauty
 import com.nosmai.effect.NosmaiEffects
 import com.nosmai.effect.api.NosmaiPreviewView
 import com.nosmai.effect.api.NosmaiCloud
+import com.nosmai.effect.internal.NosmaiFilter
 
 @Keep
 class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.RequestPermissionsResultListener {
@@ -78,6 +79,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private var cleanupInProgress: Boolean = false
     private var lastCleanupAtMs: Long = 0L
     private var usingPlatformView: Boolean = false
+    private var isCameraPaused: Boolean = false  // New flag for pause/resume
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private fun runOnMain(block: () -> Unit) {
@@ -91,6 +93,103 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         private const val FILTERS_PREFIX = "assets/filters/"
         private const val NOSMAI_FILTERS_PREFIX = "assets/nosmai_filters/"
         private const val CACHE_DIR_NAME = "NosmaiLocalFilters"
+
+        /**
+         * Process external I420 video buffer through Nosmai SDK filters
+         * This method can be called from native code (e.g., Agora VideoFrameObserver)
+         *
+         * @param yBuffer Y plane buffer
+         * @param uBuffer U plane buffer
+         * @param vBuffer V plane buffer
+         * @param width Frame width
+         * @param height Frame height
+         * @param yStride Y plane stride
+         * @param uStride U plane stride
+         * @param vStride V plane stride
+         * @param rotation Frame rotation (0, 90, 180, 270)
+         * @return true if processing succeeded, false otherwise
+         */
+        @JvmStatic
+        fun processExternalI420Buffer(
+            yBuffer: java.nio.ByteBuffer,
+            uBuffer: java.nio.ByteBuffer,
+            vBuffer: java.nio.ByteBuffer,
+            width: Int,
+            height: Int,
+            yStride: Int,
+            uStride: Int,
+            vStride: Int,
+            rotation: Int
+        ): Boolean {
+            return try {
+                try {
+                    val glView = com.nosmai.effect.internal.Nosmai.getCurrentGLView()
+
+                    if (glView != null) {
+                        val sourceRawData = glView.sourceRawData
+
+                        if (sourceRawData != null) {
+                            sourceRawData.ProcessData(
+                                yBuffer,
+                                uBuffer,
+                                vBuffer,
+                                width,
+                                height,
+                                yStride,
+                                uStride,
+                                vStride,
+                                1,
+                                1,
+                                rotation
+                            )
+                            return true
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Direct processing failed, trying pipeline ready callback: ${e.message}")
+                }
+
+                NosmaiSDK.addOnPipelineReady {
+                    try {
+
+                        val glView = com.nosmai.effect.internal.Nosmai.getCurrentGLView()
+
+                        if (glView == null) {
+                            return@addOnPipelineReady
+                        }
+
+                        val sourceRawData = glView.sourceRawData
+
+                        if (sourceRawData == null) {
+                            return@addOnPipelineReady
+                        }
+
+                        sourceRawData.ProcessData(
+                            yBuffer,
+                            uBuffer,
+                            vBuffer,
+                            width,
+                            height,
+                            yStride,
+                            uStride,
+                            vStride,
+                            1,
+                            1,
+                            rotation
+                        )
+
+                        Log.d(TAG, "Frame processed (callback)")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Pipeline processing error: ${e.message}", e)
+                    }
+                }
+
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Error processing external I420 buffer: ${e.message}", e)
+                false
+            }
+        }
     }
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
@@ -113,7 +212,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                             android.widget.FrameLayout.LayoutParams.MATCH_PARENT
                         )
                     )
-                    // Add a black overlay for smooth crossfade during camera switch
                     val overlay = android.view.View(ctx)
                     overlay.setBackgroundColor(Color.BLACK)
                     overlay.alpha = 0f
@@ -129,15 +227,35 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                     platformContainer = container
                     switchOverlayView = overlay
                     usingPlatformView = true
-                    // Ensure GL pipeline is initialized for the new PreviewView
                     try {
                         previewView?.initializePipeline()
                     } catch (_: Throwable) {}
-                    try { attemptDeferredStart() } catch (_: Throwable) {}
+
+                    pendingStartProcessing = true
+
+                    try {
+                        attemptDeferredStart()
+                    } catch (e: Throwable) {
+                    }
                     return object : PlatformView {
                         override fun getView(): android.view.View = container
                         override fun dispose() {
-                            try { container.removeAllViews() } catch (_: Throwable) {}
+                            try {
+                                camera2Helper?.stopCamera()
+                                camera2Helper = null
+                            } catch (e: Throwable) {
+                            }
+                            try {
+                                isProcessingActive = false
+                                pendingStartProcessing = false
+                            } catch (_: Throwable) {}
+                            try {
+                                cleanupInProgress = false
+                            } catch (_: Throwable) {}
+                            try {
+                                container.removeAllViews()
+                                previewView = null
+                            } catch (_: Throwable) {}
                             usingPlatformView = false
                             platformContainer = null
                             switchOverlayView = null
@@ -167,6 +285,8 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             "configureCamera" -> handleConfigureCamera(call, result)
             "startProcessing" -> handleStartProcessing(result)
             "stopProcessing" -> handleStopProcessing(result)
+            "pauseCamera" -> handlePauseCamera(result)
+            "resumeCamera" -> handleResumeCamera(result)
             "switchCamera" -> handleSwitchCamera(result)
             "detachCameraView" -> handleDetachCameraView(result)
             "setFlashMode" -> handleSetFlashMode(call, result)
@@ -202,6 +322,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             "saveImageToGallery" -> handleSaveImageToGallery(call, result)
             "saveVideoToGallery" -> handleSaveVideoToGallery(call, result)
             "cleanup" -> handleCleanup(result)
+            "dispose" -> handleDispose(result)
             "clearFilterCache" -> handleClearFilterCache(result)
             "reinitializePreview" -> handleReinitializePreview(result)
             "getEffectParameters" -> handleGetEffectParameters(result)
@@ -223,7 +344,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         }
     }
 
-    // --- Apply Effect (.nosmai) ---
     private fun handleApplyEffect(call: MethodCall, result: Result) {
         val effectPathArg = call.argument<String>("effectPath")
         if (effectPathArg.isNullOrBlank()) {
@@ -239,8 +359,15 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 return
             }
 
-            NosmaiEffects.applyEffect(file.absolutePath)
-            result.success(true)
+            val isExternalPipelineActive = NosmaiSDK.isExternalFramePipelineReady()
+
+            if (isExternalPipelineActive) {
+                val success = NosmaiSDK.applyFilterToExternalPipeline(file.absolutePath)
+                result.success(success)
+            } else {
+                NosmaiEffects.applyEffect(file.absolutePath)
+                result.success(true)
+            }
         } catch (t: Throwable) {
             Log.e(TAG, "applyEffect error", t)
             result.success(false)
@@ -285,7 +412,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         
         try {
             previewView?.initializePipeline()
-            Log.i(TAG, "✅ Pipeline initialized - GLView set for beauty filters")
         } catch (e: Throwable) {
             Log.w(TAG, "⚠️ Pipeline initialization warning: ${e.message}")
         }
@@ -407,18 +533,31 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun handleStartProcessing(result: Result) {
         try {
-            val now = System.currentTimeMillis()
-            if (cleanupInProgress || (now - lastCleanupAtMs) < 700) {
-                pendingStartProcessing = true
-                val delay = (700 - (now - lastCleanupAtMs)).coerceAtLeast(100)
-                Handler(Looper.getMainLooper()).postDelayed({
-                    try { attemptDeferredStart() } catch (_: Throwable) {}
-                }, delay)
+            if (usingPlatformView && isProcessingActive) {
+                Log.i(TAG, "PlatformView already active, skipping duplicate start")
                 result.success(null)
                 return
             }
+
+            if (usingPlatformView) {
+                cleanupInProgress = false
+            } else {
+                val now = System.currentTimeMillis()
+                if (cleanupInProgress || (now - lastCleanupAtMs) < 700) {
+                    Log.d(TAG, "Cleanup in progress, deferring start...")
+                    pendingStartProcessing = true
+                    val delay = (700 - (now - lastCleanupAtMs)).coerceAtLeast(100)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        try { attemptDeferredStart() } catch (_: Throwable) {}
+                    }, delay)
+                    result.success(null)
+                    return
+                }
+            }
+
             val act = activity
-            if (act != null && previewView == null) {
+            if (act != null && previewView == null && !usingPlatformView) {
+                Log.d(TAG, "   Creating off-screen NosmaiPreviewView (texture mode)")
                 previewView = NosmaiPreviewView(act)
                 val root = act.findViewById<ViewGroup>(android.R.id.content)
                 if (previewView?.parent == null) {
@@ -438,12 +577,14 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 return
             }
             try { previewView?.initializePipeline() } catch (_: Throwable) {}
+
+
             NosmaiSDK.startProcessing(previewView!!)
             isProcessingActive = true
             try { NosmaiSDK.setCameraFacing(isFrontCamera) } catch (_: Throwable) {}
             try { NosmaiSDK.setMirrorX(isFrontCamera) } catch (_: Throwable) {}
-            
-            
+
+
             ensureCameraPermissionThenStart()
             try { previewView?.requestRenderUpdate() } catch (_: Throwable) {}
             result.success(null)
@@ -466,6 +607,81 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         } catch (t: Throwable) {
             Log.e(TAG, "stopProcessing error", t)
             result.error("STOP_ERROR", t.message, null)
+        }
+    }
+
+    private fun handlePauseCamera(result: Result) {
+        try {
+            Log.d(TAG, "⏸️ pauseCamera called (isProcessingActive=$isProcessingActive, isCameraPaused=$isCameraPaused)")
+
+            if (!isProcessingActive) {
+                Log.w(TAG, "   ⚠️ Processing not active, cannot pause")
+                result.success(false)
+                return
+            }
+
+            if (isCameraPaused) {
+                Log.w(TAG, "   ⚠️ Camera already paused")
+                result.success(true)
+                return
+            }
+
+            // Only stop camera hardware - SDK processing stays active
+            try {
+                camera2Helper?.stopCamera()
+                Log.d(TAG, "   ✓ Camera hardware stopped")
+            } catch (e: Throwable) {
+                Log.w(TAG, "   ⚠️ Camera stop warning: ${e.message}")
+            }
+
+            isCameraPaused = true
+            Log.d(TAG, "✅ Camera paused successfully")
+            result.success(true)
+
+        } catch (t: Throwable) {
+            Log.e(TAG, "pauseCamera error", t)
+            result.error("PAUSE_ERROR", t.message, null)
+        }
+    }
+
+    private fun handleResumeCamera(result: Result) {
+        try {
+            Log.d(TAG, "▶️ resumeCamera called (isProcessingActive=$isProcessingActive, isCameraPaused=$isCameraPaused)")
+
+            if (!isProcessingActive) {
+                Log.w(TAG, "   ⚠️ Processing not active, cannot resume")
+                result.success(false)
+                return
+            }
+
+            if (!isCameraPaused) {
+                Log.w(TAG, "   ⚠️ Camera not paused, nothing to resume")
+                result.success(true)
+                return
+            }
+
+            // Restart camera hardware - SDK processing already active
+            try {
+                val helper = camera2Helper
+                if (helper != null) {
+                    helper.startCamera()
+                    Log.d(TAG, "   ✓ Camera hardware restarted")
+                } else {
+                    Log.w(TAG, "   ⚠️ Camera2Helper is null, recreating camera")
+                    // If helper was cleared, restart full camera
+                    startCamera()
+                }
+            } catch (e: Throwable) {
+                Log.w(TAG, "   ⚠️ Camera restart warning: ${e.message}")
+            }
+
+            isCameraPaused = false
+            Log.d(TAG, "✅ Camera resumed successfully")
+            result.success(true)
+
+        } catch (t: Throwable) {
+            Log.e(TAG, "resumeCamera error", t)
+            result.error("RESUME_ERROR", t.message, null)
         }
     }
 
@@ -607,7 +823,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
                     Handler(Looper.getMainLooper()).postDelayed({
                         try {
-                            // Reuse existing helper when possible for faster switch
                             val existing = camera2Helper
                             if (existing == null) {
                                 camera2Helper = Camera2Helper(act, isFrontCamera)
@@ -649,8 +864,15 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun handleRemoveAllFilters(result: Result) {
         try {
-            NosmaiEffects.removeEffect()
-            result.success(null)
+            val isExternalPipelineActive = NosmaiSDK.isExternalFramePipelineReady()
+
+            if (isExternalPipelineActive) {
+                val success = NosmaiSDK.removeFilterFromExternalPipeline()
+                result.success(null)
+            } else {
+                NosmaiEffects.removeEffect()
+                result.success(null)
+            }
         } catch (t: Throwable) {
             Log.e(TAG, "removeAllFilters error", t)
             result.error("REMOVE_FILTERS_ERROR", t.message, null)
@@ -975,7 +1197,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             val blue = call.argument<Number>("blue")?.toFloat() ?: 1.0f
             
             NosmaiBeauty.applyRGB(red, green, blue)
-            Log.d(TAG, "Applied RGB filter: R=$red, G=$green, B=$blue")
             
             result.success(null)
         } catch (t: Throwable) {
@@ -995,7 +1216,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             val normalized = (intensity / 100.0).coerceIn(0.0, 1.0)
             
             NosmaiBeauty.applyLipstick(normalized.toFloat())
-            Log.d(TAG, "Applied lipstick: $normalized")
             
             result.success(null)
         } catch (t: Throwable) {
@@ -1015,7 +1235,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             val normalized = (intensity / 100.0).coerceIn(0.0, 1.0)
             
             NosmaiBeauty.applyBlusher(normalized.toFloat())
-            Log.d(TAG, "Applied blusher: $normalized")
             
             result.success(null)
         } catch (t: Throwable) {
@@ -1038,22 +1257,18 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 "lipstickfilter", "lipstick" -> {
                     val normalized = (level / 100.0).coerceIn(0.0, 1.0)
                     NosmaiBeauty.applyLipstick(normalized.toFloat())
-                    Log.d(TAG, "Applied lipstick: $normalized")
                 }
                 "blusherfilter", "blusher" -> {
                     val normalized = (level / 100.0).coerceIn(0.0, 1.0)
                     NosmaiBeauty.applyBlusher(normalized.toFloat())
-                    Log.d(TAG, "Applied blusher: $normalized")
                 }
                 "skinsmoothing", "smoothing" -> {
                     val normalized = (level / 100.0).coerceIn(0.0, 1.0)
                     NosmaiBeauty.applySkinSmoothing(normalized.toFloat())
-                    Log.d(TAG, "Applied skin smoothing: $normalized")
                 }
                 "skinwhitening", "whitening" -> {
                     val normalized = (level / 100.0).coerceIn(0.0, 1.0)
                     NosmaiBeauty.applySkinWhitening(normalized.toFloat())
-                    Log.d(TAG, "Applied skin whitening: $normalized")
                 }
                 else -> {
                     Log.w(TAG, "Unknown makeup filter: $filterName")
@@ -1682,14 +1897,127 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             result.success(null)
             Handler(Looper.getMainLooper()).postDelayed({ cleanupInProgress = false }, 700)
         } catch (t: Throwable) {
-            Log.e(TAG, "Cleanup error", t)
             result.error("CLEANUP_ERROR", t.message, null)
         }
     }
 
+    private fun handleDispose(result: Result) {
+        try {
+            Log.d(TAG, "🗑️ handleDispose: Full plugin disposal")
+            cleanupInProgress = true
+
+            try {
+                // 1. Stop camera hardware first
+                camera2Helper?.stopCamera()
+                camera2Helper = null
+                Log.d(TAG, "   ✓ Camera stopped")
+            } catch (e: Throwable) {
+                Log.w(TAG, "   ⚠️ Camera stop warning: ${e.message}")
+            }
+
+            try {
+                // 2. Stop processing if active
+                if (isProcessingActive) {
+                    NosmaiSDK.stopProcessing()
+                    isProcessingActive = false
+                    Log.d(TAG, "   ✓ Processing stopped")
+                }
+            } catch (e: Throwable) {
+                Log.w(TAG, "   ⚠️ Stop processing warning: ${e.message}")
+            }
+
+            try {
+                // 3. Stop recording if active
+                if (isRecording) {
+                    NosmaiSDK.stopRecording(object : NosmaiSDK.RecordingCallback {
+                        override fun onCompleted(outputPath: String?, success: Boolean, error: String?) {
+                            Log.d(TAG, "   ✓ Recording stopped during dispose")
+                        }
+                    })
+                    isRecording = false
+                }
+            } catch (e: Throwable) {
+                Log.w(TAG, "   ⚠️ Stop recording warning: ${e.message}")
+            }
+
+            try {
+                // 4. Remove all filters and effects
+                NosmaiEffects.removeEffect()
+                NosmaiBeauty.removeAllBeautyFilters()
+                Log.d(TAG, "   ✓ Filters removed")
+            } catch (e: Throwable) {
+                Log.w(TAG, "   ⚠️ Filter removal warning: ${e.message}")
+            }
+
+            try {
+                // 5. Clear render surface
+                NosmaiSDK.clearRenderSurface()
+                Log.d(TAG, "   ✓ Render surface cleared")
+            } catch (e: Throwable) {
+                Log.w(TAG, "   ⚠️ Surface clear warning: ${e.message}")
+            }
+
+            try {
+                // 6. Release texture entry and surface
+                surface?.release()
+                surface = null
+                textureEntry?.release()
+                textureEntry = null
+                Log.d(TAG, "   ✓ Texture/Surface released")
+            } catch (e: Throwable) {
+                Log.w(TAG, "   ⚠️ Texture release warning: ${e.message}")
+            }
+
+            try {
+                // 7. Full SDK cleanup - this releases native resources
+                if (isSdkInitialized) {
+                    NosmaiSDK.cleanup()
+                    Log.d(TAG, "   ✓ SDK cleanup completed")
+                }
+            } catch (e: Throwable) {
+                Log.w(TAG, "   ⚠️ SDK cleanup warning: ${e.message}")
+            }
+
+            // 8. Reset all plugin state flags
+            isProcessingActive = false
+            pendingStartProcessing = false
+            isSdkInitialized = false
+            usingPlatformView = false
+            surfaceReboundOnce = false
+
+            // 9. Clear view references
+            previewView = null
+            platformContainer = null
+            switchOverlayView = null
+
+            Log.d(TAG, "✅ Full disposal complete")
+            result.success(null)
+
+        } catch (t: Throwable) {
+            Log.e(TAG, "dispose error", t)
+            result.error("DISPOSE_ERROR", t.message, null)
+        } finally {
+            // Reset cleanup flag immediately - no delay needed for full disposal
+            cleanupInProgress = false
+        }
+    }
+
     private fun attemptDeferredStart() {
-        if (!pendingStartProcessing || isProcessingActive || cleanupInProgress) return
+        if (!pendingStartProcessing) {
+            return
+        }
+        if (usingPlatformView) {
+            cleanupInProgress = false
+        } else if (cleanupInProgress) {
+            return
+        }
+
+        if (isProcessingActive) {
+            isProcessingActive = false
+        }
+
         val pv = previewView ?: return
+
         if (usingPlatformView) {
             try {
                 try { pv.initializePipeline() } catch (_: Throwable) {}
@@ -1700,7 +2028,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 ensureCameraPermissionThenStart()
                 try { pv.requestRenderUpdate() } catch (_: Throwable) {}
             } catch (e: Throwable) {
-                Log.e(TAG, "attemptDeferredStart (platformView) error", e)
+                isProcessingActive = false 
             } finally {
                 pendingStartProcessing = false
             }
@@ -2173,10 +2501,22 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun startCamera() {
         val act = activity ?: return
-        if (camera2Helper == null) camera2Helper = Camera2Helper(act, isFrontCamera)
-        val helper = camera2Helper ?: return
         val pv = previewView ?: return
-        
+
+        val oldHelper = camera2Helper
+        if (oldHelper != null) {
+            try {
+                oldHelper.stopCamera() 
+                Log.d(TAG, "Camera stopped successfully")
+            } catch (e: Throwable) {
+                Log.w(TAG, "Error stopping old camera: ${e.message}")
+            }
+            camera2Helper = null
+        }
+
+        camera2Helper = Camera2Helper(act, isFrontCamera)
+        val helper = camera2Helper ?: return
+
         val w = pendingSurfaceWidth
         val h = pendingSurfaceHeight
         if (w != null && h != null) {
@@ -2233,7 +2573,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                         NosmaiSDK.setRenderSurface(s, width, height)
                         if (pendingMirrorForNextFrame == null) {
                             NosmaiSDK.setMirrorX(isFrontCamera)
-                            Log.d(TAG, "Frame processing: setMirrorX with isFrontCamera=$isFrontCamera")
                         }
                         surfaceReboundOnce = true
                     } catch (_: Throwable) {}
@@ -2253,6 +2592,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 pv.requestRenderUpdate()
             }
         })
+
         helper.startCamera()
     }
 
@@ -2362,22 +2702,42 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             val paramsList = mutableListOf<Map<String, Any?>>()
 
             for (param in parameters) {
-                // Map Android's type-specific values to Flutter's defaultValue
-                val defaultValue: Any? = when (param.type) {
-                    "float" -> param.floatValue
-                    "int" -> param.intValue
-                    "string" -> param.stringValue
-                    "vector" -> param.vectorValue?.toList() // Convert array to list for Flutter
-                    else -> null
-                }
+                try {
+                    // Use reflection to access fields since Kotlin can't resolve the type at compile time
+                    val paramClass = param.javaClass
+                    val nameField = paramClass.getField("name")
+                    val typeField = paramClass.getField("type")
+                    val floatValueField = paramClass.getField("floatValue")
+                    val intValueField = paramClass.getField("intValue")
+                    val stringValueField = paramClass.getField("stringValue")
+                    val vectorValueField = paramClass.getField("vectorValue")
 
-                val paramMap = hashMapOf<String, Any?>(
-                    "name" to param.name,
-                    "type" to param.type,
-                    "defaultValue" to defaultValue,
-                    "passId" to 0  // Android doesn't have passId, use 0 as default
-                )
-                paramsList.add(paramMap)
+                    val paramName = nameField.get(param) as? String ?: ""
+                    val paramType = typeField.get(param) as? String ?: "float"
+                    val floatVal = floatValueField.getFloat(param)
+                    val intVal = intValueField.getInt(param)
+                    val stringVal = stringValueField.get(param) as? String
+                    val vectorVal = vectorValueField.get(param) as? FloatArray
+
+                    // Map Android's type-specific values to Flutter's defaultValue
+                    val defaultValue: Any? = when (paramType) {
+                        "float" -> floatVal
+                        "int" -> intVal
+                        "string" -> stringVal
+                        "vector" -> vectorVal?.toList() // Convert array to list for Flutter
+                        else -> null
+                    }
+
+                    val paramMap = hashMapOf<String, Any?>(
+                        "name" to paramName,
+                        "type" to paramType,
+                        "defaultValue" to defaultValue,
+                        "passId" to 0  // Android doesn't have passId, use 0 as default
+                    )
+                    paramsList.add(paramMap)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to parse parameter: ${e.message}")
+                }
             }
 
             result.success(paramsList)

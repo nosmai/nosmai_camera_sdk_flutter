@@ -6,6 +6,14 @@
 #import <sys/socket.h>
 #import <netinet/in.h>
 
+// NosmaiExternalProcessor interface
+@interface NosmaiExternalProcessor : NSObject
+@property (nonatomic, assign) BOOL isInitialized;
+@property (nonatomic, assign) CVPixelBufferRef lastProcessedBuffer;
+@property (nonatomic, strong) dispatch_semaphore_t frameSemaphore;
+- (BOOL)processPixelBuffer:(CVPixelBufferRef)pixelBuffer mirror:(BOOL)mirror;
+@end
+
 @interface NosmaiFlutterPlugin() <NosmaiDelegate, NosmaiCameraDelegate, NosmaiEffectsDelegate>
 @property(nonatomic, strong) FlutterMethodChannel* channel;
 @property(nonatomic, strong) UIView* previewView;
@@ -2548,5 +2556,321 @@
 }
 
 #pragma mark - Test Filter Method
+
+#pragma mark - External Pixel Buffer Processing
+
+// Static instance for external processing
+static NosmaiExternalProcessor *_externalProcessor = nil;
+static dispatch_once_t onceToken;
+static BOOL isOffscreenInitialized = NO;
+
+// Shared CIContext for GPU-accelerated manual flip (created once, reused for performance)
+static CIContext *_sharedFlipCIContext = nil;
+static dispatch_once_t _flipCIContextOnceToken;
+
+#pragma mark - Manual Mirror Transform Helper
+
++ (CIContext *)sharedFlipCIContext {
+    dispatch_once(&_flipCIContextOnceToken, ^{
+        _sharedFlipCIContext = [CIContext contextWithOptions:@{
+            kCIContextUseSoftwareRenderer: @NO,  // Use GPU
+            kCIContextPriorityRequestLow: @NO    // High priority
+        }];
+        NSLog(@"✅ Created shared CIContext for manual flip (GPU-accelerated)");
+    });
+    return _sharedFlipCIContext;
+}
+
++ (CVPixelBufferRef)flipPixelBufferHorizontally:(CVPixelBufferRef)pixelBuffer {
+    if (!pixelBuffer) {
+        return NULL;
+    }
+
+    @autoreleasepool {
+        CIImage *ciImage = [CIImage imageWithCVPixelBuffer:pixelBuffer];
+        if (!ciImage) {
+            NSLog(@"⚠️ Failed to create CIImage from pixelBuffer");
+            return NULL;
+        }
+
+        // Apply horizontal flip transform
+        CGAffineTransform transform = CGAffineTransformMakeScale(-1.0, 1.0);
+        transform = CGAffineTransformTranslate(transform, -ciImage.extent.size.width, 0);
+        CIImage *flippedImage = [ciImage imageByApplyingTransform:transform];
+
+        // Create new pixel buffer
+        CVPixelBufferRef flippedBuffer = NULL;
+        CVReturn status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            CVPixelBufferGetWidth(pixelBuffer),
+            CVPixelBufferGetHeight(pixelBuffer),
+            CVPixelBufferGetPixelFormatType(pixelBuffer),
+            NULL,
+            &flippedBuffer
+        );
+
+        if (status != kCVReturnSuccess || !flippedBuffer) {
+            NSLog(@"⚠️ Failed to create flipped CVPixelBuffer: %d", (int)status);
+            return NULL;
+        }
+
+        // GPU render
+        [[self sharedFlipCIContext] render:flippedImage toCVPixelBuffer:flippedBuffer];
+        return flippedBuffer;  // Caller must release
+    }
+}
+
+#pragma mark - New External Processing Implementation
+
++ (BOOL)processExternalPixelBuffer:(CVPixelBufferRef)pixelBuffer shouldFlip:(BOOL)shouldFlip {
+    if (!pixelBuffer) {
+        return NO;
+    }
+
+    NosmaiSDK *sdk = [NosmaiSDK sharedInstance];
+    if (!sdk) {
+        return NO;
+    }
+
+    // Initialize offscreen mode on first frame
+    if (!isOffscreenInitialized) {
+        BOOL offscreenSuccess = [sdk initializeOffscreenWithWidth:720 height:1280];
+        if (!offscreenSuccess) {
+            return NO;
+        }
+        [sdk setProcessingMode:NosmaiProcessingModeOffscreen];
+        [sdk setLiveFrameOutputEnabled:YES];
+        isOffscreenInitialized = YES;
+        NSLog(@"✅ Nosmai offscreen mode initialized");
+    }
+
+    // Lazy init external processor
+    dispatch_once(&onceToken, ^{
+        _externalProcessor = [[NosmaiExternalProcessor alloc] init];
+    });
+
+    @try {
+        CVPixelBufferRef bufferToProcess = pixelBuffer;
+        CVPixelBufferRef flippedBuffer = NULL;
+
+        // STEP 1: Manual flip if needed (front camera un-mirror)
+        if (shouldFlip) {
+            flippedBuffer = [self flipPixelBufferHorizontally:pixelBuffer];
+            if (flippedBuffer) {
+                bufferToProcess = flippedBuffer;
+            }
+        }
+
+        // STEP 2: Create CMSampleBuffer
+        CMSampleBufferRef sampleBuffer = NULL;
+        CMSampleTimingInfo timingInfo = {
+            .duration = CMTimeMake(1, 30),
+            .presentationTimeStamp = CMTimeMake(0, 1),
+            .decodeTimeStamp = kCMTimeInvalid
+        };
+
+        CMVideoFormatDescriptionRef formatDescription = NULL;
+        CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, bufferToProcess, &formatDescription);
+
+        OSStatus status = CMSampleBufferCreateForImageBuffer(
+            kCFAllocatorDefault,
+            bufferToProcess,
+            true,
+            NULL,
+            NULL,
+            formatDescription,
+            &timingInfo,
+            &sampleBuffer
+        );
+
+        if (formatDescription) {
+            CFRelease(formatDescription);
+        }
+
+        if (status != noErr || !sampleBuffer) {
+            if (flippedBuffer) CVPixelBufferRelease(flippedBuffer);
+            return NO;
+        }
+
+        // STEP 3: Process with Nosmai (ALWAYS mirror:NO since we manually flipped)
+        BOOL processSuccess = [sdk processSampleBuffer:sampleBuffer mirror:NO];
+        CFRelease(sampleBuffer);
+
+        if (!processSuccess) {
+            if (flippedBuffer) CVPixelBufferRelease(flippedBuffer);
+            return NO;
+        }
+
+        // STEP 4: Wait for callback
+        dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC);
+        long result = dispatch_semaphore_wait(_externalProcessor.frameSemaphore, timeout);
+
+        if (result != 0) {
+            if (flippedBuffer) CVPixelBufferRelease(flippedBuffer);
+            return NO;
+        }
+
+        // STEP 5: Copy back to original buffer
+        if (_externalProcessor.lastProcessedBuffer) {
+            CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+            CVPixelBufferLockBaseAddress(_externalProcessor.lastProcessedBuffer, 0);
+
+            void *srcBaseAddress = CVPixelBufferGetBaseAddress(_externalProcessor.lastProcessedBuffer);
+            void *dstBaseAddress = CVPixelBufferGetBaseAddress(pixelBuffer);
+            size_t srcBytesPerRow = CVPixelBufferGetBytesPerRow(_externalProcessor.lastProcessedBuffer);
+            size_t dstBytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer);
+            size_t height = CVPixelBufferGetHeight(pixelBuffer);
+
+            for (size_t row = 0; row < height; row++) {
+                memcpy(dstBaseAddress + row * dstBytesPerRow,
+                       srcBaseAddress + row * srcBytesPerRow,
+                       MIN(srcBytesPerRow, dstBytesPerRow));
+            }
+
+            CVPixelBufferUnlockBaseAddress(_externalProcessor.lastProcessedBuffer, 0);
+            CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+        }
+
+        // Cleanup
+        if (flippedBuffer) {
+            CVPixelBufferRelease(flippedBuffer);
+        }
+
+        return YES;
+
+    } @catch (NSException *exception) {
+        return NO;
+    }
+}
+
+#pragma mark - Backward Compatible Method
+
++ (BOOL)processExternalPixelBuffer:(CVPixelBufferRef)pixelBuffer mirror:(BOOL)mirror {
+    // Redirect to new implementation
+    return [self processExternalPixelBuffer:pixelBuffer shouldFlip:mirror];
+}
+
+@end
+
+#pragma mark - NosmaiExternalProcessor Implementation
+
+@implementation NosmaiExternalProcessor
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _isInitialized = YES;
+        _lastProcessedBuffer = NULL;
+        _frameSemaphore = dispatch_semaphore_create(0);
+
+        // Set callback to receive processed frames
+        NosmaiSDK *sdk = [NosmaiSDK sharedInstance];
+        __weak typeof(self) weakSelf = self;
+        [sdk setCVPixelBufferCallback:^(CVPixelBufferRef processedBuffer, double timestamp) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+
+            if (processedBuffer) {
+                CVPixelBufferRetain(processedBuffer);
+                if (strongSelf.lastProcessedBuffer) {
+                    CVPixelBufferRelease(strongSelf.lastProcessedBuffer);
+                }
+                strongSelf.lastProcessedBuffer = processedBuffer;
+                dispatch_semaphore_signal(strongSelf.frameSemaphore);
+            }
+        }];
+    }
+    return self;
+}
+
+- (BOOL)processPixelBuffer:(CVPixelBufferRef)pixelBuffer mirror:(BOOL)mirror {
+    if (!_isInitialized) {
+        return NO;
+    }
+
+    @try {
+        // Create CMSampleBuffer from CVPixelBuffer
+        CMSampleBufferRef sampleBuffer = NULL;
+        CMSampleTimingInfo timingInfo = {
+            .duration = CMTimeMake(1, 30),
+            .presentationTimeStamp = CMTimeMake(0, 1),
+            .decodeTimeStamp = kCMTimeInvalid
+        };
+
+        CMVideoFormatDescriptionRef formatDescription = NULL;
+        CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, pixelBuffer, &formatDescription);
+
+        OSStatus status = CMSampleBufferCreateForImageBuffer(
+            kCFAllocatorDefault,
+            pixelBuffer,
+            true,
+            NULL,
+            NULL,
+            formatDescription,
+            &timingInfo,
+            &sampleBuffer
+        );
+
+        if (formatDescription) {
+            CFRelease(formatDescription);
+        }
+
+        if (status != noErr || !sampleBuffer) {
+            return NO;
+        }
+
+        // Process through NosmaiSDK
+        NosmaiSDK *sdk = [NosmaiSDK sharedInstance];
+        BOOL processSuccess = [sdk processSampleBuffer:sampleBuffer mirror:mirror];
+        CFRelease(sampleBuffer);
+
+        if (!processSuccess) {
+            return NO;
+        }
+
+        // Wait for processed frame from callback (50ms timeout)
+        dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC);
+        long result = dispatch_semaphore_wait(self.frameSemaphore, timeout);
+
+        if (result != 0) {
+            return NO;
+        }
+
+        // Copy processed frame back to original buffer (no flip needed)
+        if (self.lastProcessedBuffer) {
+            CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+            CVPixelBufferLockBaseAddress(self.lastProcessedBuffer, 0);
+
+            void *srcBaseAddress = CVPixelBufferGetBaseAddress(self.lastProcessedBuffer);
+            void *dstBaseAddress = CVPixelBufferGetBaseAddress(pixelBuffer);
+            size_t srcBytesPerRow = CVPixelBufferGetBytesPerRow(self.lastProcessedBuffer);
+            size_t dstBytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer);
+            size_t height = CVPixelBufferGetHeight(pixelBuffer);
+
+            for (size_t row = 0; row < height; row++) {
+                memcpy(dstBaseAddress + row * dstBytesPerRow,
+                       srcBaseAddress + row * srcBytesPerRow,
+                       MIN(srcBytesPerRow, dstBytesPerRow));
+            }
+
+            CVPixelBufferUnlockBaseAddress(self.lastProcessedBuffer, 0);
+            CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+
+            return YES;
+        }
+
+        return NO;
+    } @catch (NSException *exception) {
+        return NO;
+    }
+}
+
+- (void)dealloc {
+    [[NosmaiSDK sharedInstance] setCVPixelBufferCallback:nil];
+    if (_lastProcessedBuffer) {
+        CVPixelBufferRelease(_lastProcessedBuffer);
+        _lastProcessedBuffer = NULL;
+    }
+}
 
 @end

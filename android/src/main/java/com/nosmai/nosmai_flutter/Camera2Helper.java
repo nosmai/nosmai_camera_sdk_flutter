@@ -361,6 +361,14 @@ public class Camera2Helper {
             cameraDevice.createCaptureSession(targets, new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession session) {
+                    if (stopped || cameraDevice == null) {
+                        Log.d(TAG, "onConfigured: Camera already stopped, ignoring");
+                        try {
+                            session.close();
+                        } catch (Exception ignore) {}
+                        return;
+                    }
+
                     captureSession = session;
                     try {
                         // Apply flash mode

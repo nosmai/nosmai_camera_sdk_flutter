@@ -65,6 +65,16 @@ abstract class NosmaiFlutterPlatform extends PlatformInterface {
     throw UnimplementedError('cleanup() has not been implemented.');
   }
 
+  /// Pause camera hardware
+  Future<bool> pauseCamera() {
+    throw UnimplementedError('pauseCamera() has not been implemented.');
+  }
+
+  /// Resume camera hardware
+  Future<bool> resumeCamera() {
+    throw UnimplementedError('resumeCamera() has not been implemented.');
+  }
+
   /// Get platform version
   Future<String?> getPlatformVersion() {
     throw UnimplementedError('getPlatformVersion() has not been implemented.');
