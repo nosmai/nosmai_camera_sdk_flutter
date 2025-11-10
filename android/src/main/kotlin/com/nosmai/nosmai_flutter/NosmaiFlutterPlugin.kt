@@ -359,7 +359,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 return
             }
 
-            // ✅ NEW: Single unified API call - SDK handles pipeline detection automatically
             val success = NosmaiSDK.applyEffect(file.absolutePath)
             result.success(success)
 
@@ -643,13 +642,13 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             // Only stop camera hardware - SDK processing stays active
             try {
                 camera2Helper?.stopCamera()
-                Log.d(TAG, "   ✓ Camera hardware stopped")
+                Log.d(TAG, "Camera hardware stopped")
             } catch (e: Throwable) {
-                Log.w(TAG, "   ⚠️ Camera stop warning: ${e.message}")
+                Log.w(TAG, "Camera stop warning: ${e.message}")
             }
 
             isCameraPaused = true
-            Log.d(TAG, "✅ Camera paused successfully")
+            Log.d(TAG, "Camera paused successfully")
             result.success(true)
 
         } catch (t: Throwable) {
@@ -660,37 +659,31 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun handleResumeCamera(result: Result) {
         try {
-            Log.d(TAG, "▶️ resumeCamera called (isProcessingActive=$isProcessingActive, isCameraPaused=$isCameraPaused)")
 
             if (!isProcessingActive) {
-                Log.w(TAG, "   ⚠️ Processing not active, cannot resume")
+                Log.w(TAG, "Processing not active, cannot resume")
                 result.success(false)
                 return
             }
 
             if (!isCameraPaused) {
-                Log.w(TAG, "   ⚠️ Camera not paused, nothing to resume")
+                Log.w(TAG, "Camera not paused, nothing to resume")
                 result.success(true)
                 return
             }
 
-            // Restart camera hardware - SDK processing already active
             try {
                 val helper = camera2Helper
                 if (helper != null) {
                     helper.startCamera()
-                    Log.d(TAG, "   ✓ Camera hardware restarted")
                 } else {
-                    Log.w(TAG, "   ⚠️ Camera2Helper is null, recreating camera")
-                    // If helper was cleared, restart full camera
                     startCamera()
                 }
             } catch (e: Throwable) {
-                Log.w(TAG, "   ⚠️ Camera restart warning: ${e.message}")
+                Log.w(TAG, "Camera restart warning: ${e.message}")
             }
 
             isCameraPaused = false
-            Log.d(TAG, "✅ Camera resumed successfully")
             result.success(true)
 
         } catch (t: Throwable) {
@@ -878,7 +871,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun handleRemoveAllFilters(result: Result) {
         try {
-            // ✅ NEW: Single unified API call - SDK handles pipeline detection automatically
             val success = NosmaiSDK.removeAllEffects()
             result.success(success)
 
@@ -979,7 +971,6 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 return
             }
 
-            // Stop audio recording first
             val audioFilePath = audioPath
             try {
                 audioRecorder?.stop()
@@ -1512,6 +1503,37 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     }
 
     // --- Photo Capture and Gallery Functions ---
+    /**
+     * Helper function to save captured photo to temporary file and build result map
+     * @param imageData JPEG compressed image bytes
+     * @param width Image width
+     * @param height Image height
+     * @return Map with success, imageData, imagePath, width, height
+     */
+    private fun buildCapturePhotoResult(imageData: ByteArray, width: Int, height: Int): Map<String, Any?> {
+        return try {
+            val tempFile = File(context.cacheDir, "nosmai_photo_${System.currentTimeMillis()}.jpg")
+            FileOutputStream(tempFile).use { it.write(imageData) }
+
+            hashMapOf(
+                "success" to true,
+                "width" to width,
+                "height" to height,
+                "imageData" to imageData,
+                "imagePath" to tempFile.absolutePath
+            )
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to save photo to temp file", e)
+            hashMapOf(
+                "success" to true,
+                "width" to width,
+                "height" to height,
+                "imageData" to imageData,
+                "imagePath" to null
+            )
+        }
+    }
+
     private fun handleCapturePhoto(result: Result) {
         try {
             if (usingPlatformView) {
@@ -1529,12 +1551,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                                     val baos = ByteArrayOutputStream()
                                     bmp.compress(Bitmap.CompressFormat.JPEG, 85, baos)
                                     val data = baos.toByteArray()
-                                    val map = hashMapOf<String, Any?>(
-                                        "success" to true,
-                                        "width" to bmp.width,
-                                        "height" to bmp.height,
-                                        "imageData" to data
-                                    )
+                                    val map = buildCapturePhotoResult(data, bmp.width, bmp.height)
                                     Handler(Looper.getMainLooper()).post { result.success(map) }
                                 } catch (e: Throwable) {
                                     Handler(Looper.getMainLooper()).post { result.success(mapOf("success" to false, "error" to e.message)) }
@@ -1557,12 +1574,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                                         val baos = ByteArrayOutputStream()
                                         bmp.compress(Bitmap.CompressFormat.JPEG, 85, baos)
                                         val data = baos.toByteArray()
-                                        val map = hashMapOf<String, Any?>(
-                                            "success" to true,
-                                            "width" to bmp.width,
-                                            "height" to bmp.height,
-                                            "imageData" to data
-                                        )
+                                        val map = buildCapturePhotoResult(data, bmp.width, bmp.height)
                                         Handler(Looper.getMainLooper()).post { result.success(map) }
                                     } catch (e: Throwable) {
                                         Handler(Looper.getMainLooper()).post { result.success(mapOf("success" to false, "error" to e.message)) }
@@ -1600,11 +1612,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                                     val baos = ByteArrayOutputStream()
                                     bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos)
                                     val imageData = baos.toByteArray()
-                                    val resultMap = HashMap<String, Any?>()
-                                    resultMap["success"] = true
-                                    resultMap["width"] = bitmap.width
-                                    resultMap["height"] = bitmap.height
-                                    resultMap["imageData"] = imageData
+                                    val resultMap = buildCapturePhotoResult(imageData, bitmap.width, bitmap.height)
                                     Handler(Looper.getMainLooper()).post { result.success(resultMap) }
                                 } catch (e: Throwable) {
                                     Handler(Looper.getMainLooper()).post { result.success(mapOf("success" to false, "error" to "Failed to process image: ${e.message}")) }
@@ -1634,33 +1642,29 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         try {
             val buffer = java.nio.ByteBuffer.allocateDirect(width * height * 4)
             buffer.order(java.nio.ByteOrder.nativeOrder())
-            
-            android.opengl.GLES20.glReadPixels(0, 0, width, height, 
-                android.opengl.GLES20.GL_RGBA, 
-                android.opengl.GLES20.GL_UNSIGNED_BYTE, 
+
+            android.opengl.GLES20.glReadPixels(0, 0, width, height,
+                android.opengl.GLES20.GL_RGBA,
+                android.opengl.GLES20.GL_UNSIGNED_BYTE,
                 buffer)
-            
+
             buffer.rewind()
-            
+
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             bitmap.copyPixelsFromBuffer(buffer)
-            
+
             val matrix = android.graphics.Matrix()
             matrix.postScale(1f, -1f, width / 2f, height / 2f)
             val flippedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true)
-            
+
             Thread {
                 try {
                     val baos = ByteArrayOutputStream()
                     flippedBitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos)
                     val imageData = baos.toByteArray()
-                    
-                    val resultMap = HashMap<String, Any?>()
-                    resultMap["success"] = true
-                    resultMap["width"] = flippedBitmap.width
-                    resultMap["height"] = flippedBitmap.height
-                    resultMap["imageData"] = imageData
-                    
+
+                    val resultMap = buildCapturePhotoResult(imageData, flippedBitmap.width, flippedBitmap.height)
+
                     Handler(Looper.getMainLooper()).post {
                         result.success(resultMap)
                     }

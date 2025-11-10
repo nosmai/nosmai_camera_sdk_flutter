@@ -1783,21 +1783,38 @@
                                details:nil]);
     return;
   }
-  
+
   [[NosmaiCore shared] capturePhoto:^(UIImage *image, NSError *error) {
     if (image) {
       NSData *imageData = UIImageJPEGRepresentation(image, 0.8);
-      
+
       NSMutableDictionary *resultDict = [NSMutableDictionary dictionary];
       resultDict[@"success"] = @YES;
       resultDict[@"width"] = @(image.size.width);
       resultDict[@"height"] = @(image.size.height);
-      
+
       if (imageData) {
         FlutterStandardTypedData *typedData = [FlutterStandardTypedData typedDataWithBytes:imageData];
         resultDict[@"imageData"] = typedData;
+
+        @try {
+          NSString *tempDir = NSTemporaryDirectory();
+          NSString *fileName = [NSString stringWithFormat:@"nosmai_photo_%ld.jpg",
+                                (long)[[NSDate date] timeIntervalSince1970] * 1000];
+          NSString *filePath = [tempDir stringByAppendingPathComponent:fileName];
+
+          if ([imageData writeToFile:filePath atomically:YES]) {
+            resultDict[@"imagePath"] = filePath;
+          } else {
+            resultDict[@"imagePath"] = [NSNull null];
+          }
+        } @catch (NSException *exception) {
+          resultDict[@"imagePath"] = [NSNull null];
+        }
+      } else {
+        resultDict[@"imagePath"] = [NSNull null];
       }
-      
+
       result(resultDict);
     } else {
       NSString *errorMessage = error ? error.localizedDescription : @"Unknown error occurred while capturing photo";
