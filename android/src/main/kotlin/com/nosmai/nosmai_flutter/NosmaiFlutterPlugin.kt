@@ -359,15 +359,10 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 return
             }
 
-            val isExternalPipelineActive = NosmaiSDK.isExternalFramePipelineReady()
+            // ✅ NEW: Single unified API call - SDK handles pipeline detection automatically
+            val success = NosmaiSDK.applyEffect(file.absolutePath)
+            result.success(success)
 
-            if (isExternalPipelineActive) {
-                val success = NosmaiSDK.applyFilterToExternalPipeline(file.absolutePath)
-                result.success(success)
-            } else {
-                NosmaiEffects.applyEffect(file.absolutePath)
-                result.success(true)
-            }
         } catch (t: Throwable) {
             Log.e(TAG, "applyEffect error", t)
             result.success(false)
@@ -392,8 +387,27 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         }
     }
 
+    private fun setupLicenseCallback() {
+        try {
+            com.nosmai.effect.internal.Nosmai.setLicenseStatusCallback { isValid, status ->
+                runOnMain {
+                    val statusString = when {
+                        isValid && status == "VALID" -> "valid"
+                        status.contains("EXPIRED", ignoreCase = true) -> "expired"
+                        !isValid -> "invalid"
+                        else -> return@runOnMain
+                    }
+                    channel.invokeMethod("onLicenseStatusChanged", mapOf("status" to statusString))
+                }
+            }
+        } catch (_: Throwable) {}
+    }
+
     private fun initializeSdk(act: Activity, key: String) {
         if (isSdkInitialized) return
+
+        setupLicenseCallback()
+
         NosmaiSDK.initialize(act, key)
         if (previewView == null) previewView = NosmaiPreviewView(act)
         val root = act.findViewById<ViewGroup>(android.R.id.content)
@@ -864,15 +878,10 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
     private fun handleRemoveAllFilters(result: Result) {
         try {
-            val isExternalPipelineActive = NosmaiSDK.isExternalFramePipelineReady()
+            // ✅ NEW: Single unified API call - SDK handles pipeline detection automatically
+            val success = NosmaiSDK.removeAllEffects()
+            result.success(success)
 
-            if (isExternalPipelineActive) {
-                val success = NosmaiSDK.removeFilterFromExternalPipeline()
-                result.success(null)
-            } else {
-                NosmaiEffects.removeEffect()
-                result.success(null)
-            }
         } catch (t: Throwable) {
             Log.e(TAG, "removeAllFilters error", t)
             result.error("REMOVE_FILTERS_ERROR", t.message, null)
@@ -1403,28 +1412,36 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private fun handleDownloadCloudFilter(call: MethodCall, result: Result) {
         val filterId = call.argument<String>("filterId")
         if (filterId.isNullOrBlank()) { result.error("ARG_ERROR", "filterId required", null); return }
-        try {
-            val latch = java.util.concurrent.CountDownLatch(1)
-            var ok = false
-            var path: String? = null
-            var err: String? = null
-            NosmaiCloud.download(filterId, object : NosmaiCloud.DownloadCallback {
-                override fun onComplete(id: String, success: Boolean, localPath: String?, error: String?) {
-                    ok = success
-                    path = localPath
-                    err = error
-                    latch.countDown()
+
+        Thread {
+            try {
+                val latch = java.util.concurrent.CountDownLatch(1)
+                var ok = false
+                var path: String? = null
+                var err: String? = null
+                NosmaiCloud.download(filterId, object : NosmaiCloud.DownloadCallback {
+                    override fun onComplete(id: String, success: Boolean, localPath: String?, error: String?) {
+                        ok = success
+                        path = localPath
+                        err = error
+                        latch.countDown()
+                    }
+                })
+                latch.await()
+                val map = HashMap<String, Any?>()
+                map["success"] = ok
+                if (ok && !path.isNullOrBlank()) map["path"] = path
+                if (!ok && !err.isNullOrBlank()) map["error"] = err
+
+                Handler(Looper.getMainLooper()).post {
+                    result.success(map)
                 }
-            })
-            latch.await()
-            val map = HashMap<String, Any?>()
-            map["success"] = ok
-            if (ok && !path.isNullOrBlank()) map["path"] = path
-            if (!ok && !err.isNullOrBlank()) map["error"] = err
-            result.success(map)
-        } catch (t: Throwable) {
-            result.success(mapOf("success" to false, "error" to (t.message ?: "Unknown error")))
-        }
+            } catch (t: Throwable) {
+                Handler(Looper.getMainLooper()).post {
+                    result.success(mapOf("success" to false, "error" to (t.message ?: "Unknown error")))
+                }
+            }
+        }.start()
     }
 
     private fun handleGetFilters(result: Result) {
@@ -2703,28 +2720,18 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
             for (param in parameters) {
                 try {
-                    // Use reflection to access fields since Kotlin can't resolve the type at compile time
-                    val paramClass = param.javaClass
-                    val nameField = paramClass.getField("name")
-                    val typeField = paramClass.getField("type")
-                    val floatValueField = paramClass.getField("floatValue")
-                    val intValueField = paramClass.getField("intValue")
-                    val stringValueField = paramClass.getField("stringValue")
-                    val vectorValueField = paramClass.getField("vectorValue")
+                    val paramName = param.name ?: ""
+                    val paramType = param.type ?: "float"
+                    val floatVal = param.floatValue
+                    val intVal = param.intValue
+                    val stringVal = param.stringValue
+                    val vectorVal = param.vectorValue
 
-                    val paramName = nameField.get(param) as? String ?: ""
-                    val paramType = typeField.get(param) as? String ?: "float"
-                    val floatVal = floatValueField.getFloat(param)
-                    val intVal = intValueField.getInt(param)
-                    val stringVal = stringValueField.get(param) as? String
-                    val vectorVal = vectorValueField.get(param) as? FloatArray
-
-                    // Map Android's type-specific values to Flutter's defaultValue
                     val defaultValue: Any? = when (paramType) {
                         "float" -> floatVal
                         "int" -> intVal
                         "string" -> stringVal
-                        "vector" -> vectorVal?.toList() // Convert array to list for Flutter
+                        "vector" -> vectorVal?.toList()
                         else -> null
                     }
 
@@ -2732,11 +2739,11 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                         "name" to paramName,
                         "type" to paramType,
                         "defaultValue" to defaultValue,
-                        "passId" to 0  // Android doesn't have passId, use 0 as default
+                        "passId" to 0
                     )
                     paramsList.add(paramMap)
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to parse parameter: ${e.message}")
+                    Log.w(TAG, "Failed to parse parameter: ${e.message}", e)
                 }
             }
 

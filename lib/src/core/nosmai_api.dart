@@ -31,6 +31,9 @@ class NosmaiFlutter {
   /// Stream controller for recording progress events (lazy initialization)
   StreamController<double>? _recordingProgressController;
 
+  /// Stream controller for license status events (lazy initialization)
+  StreamController<NosmaiLicenseStatus>? _licenseStatusController;
+
   /// Whether the SDK has been initialized
   bool _isInitialized = false;
 
@@ -74,6 +77,12 @@ class NosmaiFlutter {
     return _recordingProgressController!.stream;
   }
 
+  /// Stream of license status events
+  Stream<NosmaiLicenseStatus> get onLicenseStatusChanged {
+    _licenseStatusController ??= StreamController<NosmaiLicenseStatus>.broadcast();
+    return _licenseStatusController!.stream;
+  }
+
   // Internal dispatchers for native callbacks
   static void dispatchNativeError(NosmaiError error) {
     final inst = NosmaiFlutter.instance;
@@ -92,6 +101,12 @@ class NosmaiFlutter {
     final inst = NosmaiFlutter.instance;
     inst._recordingProgressController ??= StreamController<double>.broadcast();
     inst._recordingProgressController!.add(durationSeconds);
+  }
+
+  static void dispatchNativeLicenseStatus(NosmaiLicenseStatus status) {
+    final inst = NosmaiFlutter.instance;
+    inst._licenseStatusController ??= StreamController<NosmaiLicenseStatus>.broadcast();
+    inst._licenseStatusController!.add(status);
   }
 
   /// Whether the SDK is initialized
@@ -286,7 +301,6 @@ class NosmaiFlutter {
       final result =
           await NosmaiFlutterPlatform.instance.downloadCloudFilter(filterId);
 
-      // Clear cache after successful download to ensure updated download status
       if (result['success'] == true) {
         _cachedFilters = null;
         _lastCacheTime = null;
@@ -981,10 +995,12 @@ class NosmaiFlutter {
     _errorController?.close();
     _downloadProgressController?.close();
     _recordingProgressController?.close();
+    _licenseStatusController?.close();
 
     _errorController = null;
     _downloadProgressController = null;
     _recordingProgressController = null;
+    _licenseStatusController = null;
   }
 
   /// Internal async cleanup

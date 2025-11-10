@@ -258,6 +258,7 @@
         
         // Detach from previous view if needed
         if (self.isAttached && !self.wasDetachedGracefully) {
+            NSLog(@"[NosmaiCameraPreview] forced detach before reattach (view=%p)", self->_nativeView);
             [core.camera detachFromView];
             self.isAttached = NO;
         }
@@ -288,15 +289,22 @@
 - (void)completeAttachment {
     NosmaiCore* core = [NosmaiCore shared];
     
+#ifdef DEBUG
+    NSLog(@"[NosmaiCameraPreview] completeAttachment (view=%p, attached=%d)", self->_nativeView, self.isAttached);
+#endif
     // Essential dual attachment (the actual fix)
     [core.camera attachToView:self->_nativeView];
     [[NosmaiSDK sharedInstance] setPreviewView:self->_nativeView];
     self.isAttached = YES;
-    
+
     // Configure the native view for full-screen display
     self->_nativeView.layer.contentsGravity = kCAGravityResizeAspectFill;
     self->_nativeView.layer.masksToBounds = YES;
-    
+
+    // 🔧 FIX: Clear layer contents before forcing layout
+    // This prevents old content from flashing when layoutIfNeeded triggers layoutSubviews
+    self->_nativeView.layer.contents = nil;
+
     // Single layout update - let the system handle proper sizing
     [self->_nativeView setNeedsLayout];
     [self->_nativeView layoutIfNeeded];
@@ -398,6 +406,7 @@
     
     NosmaiCore* core = [NosmaiCore shared];
     if (core && core.isInitialized && self.isAttached) {
+        NSLog(@"[NosmaiCameraPreview] detachCameraGracefully (view=%p)", self->_nativeView);
         [core.camera detachFromView];
         self.isAttached = NO;
         self.wasDetachedGracefully = YES;

@@ -83,3 +83,10 @@ enum NosmaiTorchMode {
   on,
   auto,
 }
+
+/// License status enumeration
+enum NosmaiLicenseStatus {
+  valid,
+  expired,
+  invalid,
+}

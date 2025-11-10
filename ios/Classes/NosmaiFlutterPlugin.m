@@ -262,19 +262,19 @@
   }
   
   [NosmaiCore shared].delegate = self;
-  
+
   __weak typeof(self) weakSelf = self;
   [[NosmaiCore shared] initializeWithAPIKey:licenseKey completion:^(BOOL success, NSError *error) {
     __strong typeof(weakSelf) strongSelf = weakSelf;
     if (!strongSelf) return;
-    
+
     dispatch_async(dispatch_get_main_queue(), ^{
       strongSelf.isInitialized = success;
-      
+
       if (success) {
         [[NosmaiCore shared].camera setDelegate:strongSelf];
         [[NosmaiCore shared].effects setDelegate:strongSelf];
-        
+
         result(@YES);
       } else {
         result([FlutterError errorWithCode:@"INIT_FAILED"
@@ -1030,16 +1030,20 @@
 
 - (void)handleDetachCameraView:(FlutterMethodCall*)call result:(FlutterResult)result {
   @try {
-    if (self.isInitialized) {
-      dispatch_semaphore_wait(self.cameraStateSemaphore, DISPATCH_TIME_FOREVER);
-      
-      NosmaiCore* core = [NosmaiCore shared];
-      if (core && core.isInitialized && self.isCameraAttached) {
-        [core.camera detachFromView];
-        self.isCameraAttached = NO;
-        
-        [self.channel invokeMethod:@"onCameraDetached" arguments:nil];
-      }
+  if (self.isInitialized) {
+    dispatch_semaphore_wait(self.cameraStateSemaphore, DISPATCH_TIME_FOREVER);
+
+    NosmaiCore* core = [NosmaiCore shared];
+    if (core && core.isInitialized && self.isCameraAttached) {
+      [core.camera detachFromView];
+      self.isCameraAttached = NO;
+
+      // Ensure SDK releases the current preview surface so stale frames
+      // are not reused when we reattach on the next navigation.
+      [[NosmaiSDK sharedInstance] setPreviewView:nil];
+
+      [self.channel invokeMethod:@"onCameraDetached" arguments:nil];
+    }
       
       dispatch_semaphore_signal(self.cameraStateSemaphore);
     }
@@ -2011,6 +2015,24 @@
 }
 
 - (void)nosmaiEffectsDidRemoveAllEffects {
+}
+
+- (void)nosmaiDidChangeLicenseStatus:(BOOL)isValid status:(NSString*)status {
+  @try {
+    NSString *statusString = nil;
+
+    if (isValid && [status isEqualToString:@"VALID"]) {
+      statusString = @"valid";
+    } else if ([status rangeOfString:@"EXPIRED" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+      statusString = @"expired";
+    } else if (!isValid) {
+      statusString = @"invalid";
+    }
+
+    if (statusString) {
+      [self.channel invokeMethod:@"onLicenseStatusChanged" arguments:@{@"status": statusString}];
+    }
+  } @catch (NSException *exception) {}
 }
 
 #pragma mark - Helper Methods

@@ -154,6 +154,31 @@ class MethodChannelNosmaiFlutter extends NosmaiFlutterPlatform {
         // Camera processing stopped
         CameraStateNotifierImpl.instance.notifyCameraProcessingStopped();
         break;
+      case 'onLicenseStatusChanged':
+        try {
+          final Map<String, dynamic> args =
+              Map<String, dynamic>.from(call.arguments);
+          final statusString = args['status'] as String?;
+          if (statusString != null) {
+            NosmaiLicenseStatus status;
+            switch (statusString.toLowerCase()) {
+              case 'valid':
+                status = NosmaiLicenseStatus.valid;
+                break;
+              case 'expired':
+                status = NosmaiLicenseStatus.expired;
+                break;
+              case 'invalid':
+                status = NosmaiLicenseStatus.invalid;
+                break;
+              default:
+                return;
+            }
+            NosmaiFlutter.dispatchNativeLicenseStatus(status);
+          }
+        } catch (_) {
+        }
+        break;
     }
   }
 
