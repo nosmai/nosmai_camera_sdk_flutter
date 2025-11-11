@@ -88,6 +88,12 @@
   else if ([@"stopProcessing" isEqualToString:method]) {
     [self handleStopProcessing:call result:result];
   }
+  else if ([@"pauseCamera" isEqualToString:method]) {
+    [self handlePauseCamera:call result:result];
+  }
+  else if ([@"resumeCamera" isEqualToString:method]) {
+    [self handleResumeCamera:call result:result];
+  }
   else if ([@"applyBrightnessFilter" isEqualToString:method]) {
     [self handleApplyBrightnessFilter:call result:result];
   }
@@ -411,6 +417,48 @@
     result(nil);
   } @catch (NSException *exception) {
     result([FlutterError errorWithCode:@"STOP_PROCESSING_ERROR"
+                               message:exception.reason
+                               details:exception.userInfo]);
+  }
+}
+
+- (void)handlePauseCamera:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK must be initialized before pausing camera"
+                               details:nil]);
+    return;
+  }
+
+  @try {
+    // Only stop camera capture - SDK processing stays active
+    [[NosmaiCore shared].camera stopCapture];
+    NSLog(@"⏸️ Camera paused successfully");
+    result(@YES);
+  } @catch (NSException *exception) {
+    NSLog(@"❌ pauseCamera error: %@", exception.reason);
+    result([FlutterError errorWithCode:@"PAUSE_ERROR"
+                               message:exception.reason
+                               details:exception.userInfo]);
+  }
+}
+
+- (void)handleResumeCamera:(FlutterMethodCall*)call result:(FlutterResult)result {
+  if (!self.isInitialized) {
+    result([FlutterError errorWithCode:@"NOT_INITIALIZED"
+                               message:@"SDK must be initialized before resuming camera"
+                               details:nil]);
+    return;
+  }
+
+  @try {
+    // Only restart camera capture - SDK processing already active
+    [[NosmaiCore shared].camera startCapture];
+    NSLog(@"▶️ Camera resumed successfully");
+    result(@YES);
+  } @catch (NSException *exception) {
+    NSLog(@"❌ resumeCamera error: %@", exception.reason);
+    result([FlutterError errorWithCode:@"RESUME_ERROR"
                                message:exception.reason
                                details:exception.userInfo]);
   }

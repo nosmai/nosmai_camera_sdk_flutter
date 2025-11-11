@@ -1081,6 +1081,12 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
     }
   }
 
+  Future<void> testCamera() async {
+    await _nosmai.pauseCamera();
+    await Future.delayed(const Duration(seconds: 5));
+    await _nosmai.resumeCamera();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1088,7 +1094,8 @@ class _UnifiedCameraScreenState extends State<UnifiedCameraScreen>
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           // await testFlash();
-          await testFilter();
+          // await testFilter();
+          await testCamera();
         },
         child: const Icon(Icons.flash_on),
       ),
