@@ -43,6 +43,8 @@ import android.media.MediaMuxer
 import android.media.MediaFormat
 import android.media.MediaCodec
 import android.media.MediaExtractor
+import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CameraCharacteristics
 
 import com.nosmai.effect.api.NosmaiSDK
 import com.nosmai.effect.api.NosmaiBeauty
@@ -293,6 +295,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             "getFlashMode" -> handleGetFlashMode(result)
             "setTorchMode" -> handleSetTorchMode(call, result)
             "getTorchMode" -> handleGetTorchMode(result)
+            "hasTorch" -> handleHasTorch(result)
             "removeAllFilters" -> handleRemoveAllFilters(result)
             "startRecording" -> handleStartRecording(result)
             "stopRecording" -> handleStopRecording(result)
@@ -783,6 +786,28 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         } catch (t: Throwable) {
             Log.e(TAG, "getTorchMode error", t)
             result.success("off")
+        }
+    }
+
+    private fun handleHasTorch(result: Result) {
+        try {
+            val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val cameraIdList = cameraManager.cameraIdList
+
+            for (cameraId in cameraIdList) {
+                val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+                val flashAvailable = characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE)
+
+                if (flashAvailable == true) {
+                    result.success(true)
+                    return
+                }
+            }
+
+            result.success(false)
+        } catch (t: Throwable) {
+            Log.e(TAG, "hasTorch error", t)
+            result.success(false)
         }
     }
 
