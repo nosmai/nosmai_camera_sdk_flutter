@@ -23,4 +23,8 @@
 // Backward compatible method (redirects to shouldFlip version)
 + (BOOL)processExternalPixelBuffer:(CVPixelBufferRef)pixelBuffer mirror:(BOOL)mirror;
 
+// Reset external frame mode - call this when Agora bridge disposes
+// This resets the SDK from offscreen mode back to normal camera mode
++ (void)resetExternalFrameMode;
+
 @end

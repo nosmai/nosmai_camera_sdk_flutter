@@ -2837,6 +2837,38 @@ static dispatch_once_t _flipCIContextOnceToken;
     return [self processExternalPixelBuffer:pixelBuffer shouldFlip:mirror];
 }
 
+#pragma mark - Reset External Frame Mode
+
++ (void)resetExternalFrameMode {
+    NSLog(@"🔄 Resetting external frame mode...");
+
+    // Reset offscreen initialization flag
+    isOffscreenInitialized = NO;
+
+    // Reset dispatch_once token to allow re-initialization
+    onceToken = 0;
+
+    // Clean up external processor
+    if (_externalProcessor) {
+        if (_externalProcessor.lastProcessedBuffer) {
+            CVPixelBufferRelease(_externalProcessor.lastProcessedBuffer);
+            _externalProcessor.lastProcessedBuffer = NULL;
+        }
+        _externalProcessor = nil;
+    }
+
+    // Reset SDK processing mode back to live camera mode
+    NosmaiSDK *sdk = [NosmaiSDK sharedInstance];
+    if (sdk) {
+        [sdk setProcessingMode:NosmaiProcessingModeLive];
+        [sdk setLiveFrameOutputEnabled:NO];
+        [sdk setCVPixelBufferCallback:nil];
+        NSLog(@"✅ SDK reset to live camera mode");
+    }
+
+    NSLog(@"✅ External frame mode reset complete");
+}
+
 @end
 
 #pragma mark - NosmaiExternalProcessor Implementation
