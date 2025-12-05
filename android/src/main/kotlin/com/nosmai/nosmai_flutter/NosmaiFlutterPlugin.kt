@@ -317,6 +317,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             "adjustHSB" -> handleAdjustHSB(call, result)
             "applyWhiteBalance" -> handleApplyWhiteBalance(call, result)
             "removeBuiltInFilters" -> handleRemoveBuiltInBeautyFilters(result)
+            "isBeautyEffectEnabled" -> handleIsBeautyEffectEnabled(result)
             "isCloudFilterEnabled" -> handleIsCloudFilterEnabled(result)
             "getCloudFilters" -> handleGetCloudFilters(result)
             "downloadCloudFilter" -> handleDownloadCloudFilter(call, result)
@@ -1366,6 +1367,19 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         try {
             result.success(NosmaiCloud.isEnabled())
         } catch (t: Throwable) { result.success(false) }
+    }
+
+    private fun handleIsBeautyEffectEnabled(result: Result) {
+        try {
+            // Check if beauty features are enabled by license
+            // This matches iOS behavior: checks license feature enablement
+            val isEnabled = com.nosmai.effect.internal.Nosmai.isBeautyEnabled()
+            Log.d(TAG, "isBeautyEffectEnabled called: $isEnabled")
+            result.success(isEnabled)
+        } catch (t: Throwable) {
+            Log.e(TAG, "isBeautyEffectEnabled error: ${t.message}", t)
+            result.success(false)
+        }
     }
 
     private fun mapCategoryToFilterType(cat: String?): String {
