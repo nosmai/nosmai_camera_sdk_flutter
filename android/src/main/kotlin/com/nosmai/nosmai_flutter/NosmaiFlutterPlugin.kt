@@ -45,6 +45,8 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraCharacteristics
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 import com.nosmai.effect.api.NosmaiSDK
 import com.nosmai.effect.api.NosmaiBeauty
@@ -83,6 +85,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private var usingPlatformView: Boolean = false
     private var isCameraPaused: Boolean = false  // New flag for pause/resume
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val backgroundExecutor: ExecutorService = Executors.newCachedThreadPool()
 
     private fun runOnMain(block: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) block() else mainHandler.post(block)
@@ -273,6 +276,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         try { surface?.release() } catch (_: Throwable) {}
         surface = null
         isSurfaceReady = false
+        backgroundExecutor.shutdownNow()
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -1392,50 +1396,58 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     }
 
     private fun handleGetCloudFilters(result: Result) {
-        try {
-            val list = NosmaiCloud.list()
-            val out = ArrayList<Map<String, Any?>>()
-            for (it in list) {
-                val id = it.id
-                val name = it.name
-                val displayName = toTitleCase(if (name.isNotBlank()) name else id)
-                val type = "cloud"
-                val downloaded = it.isDownloaded
-                val localPath = it.localPath
-                val filterType = mapCategoryToFilterType(it.category)
-                val fileSize = try { if (downloaded && localPath.isNotBlank()) File(localPath).length().toInt() else 0 } catch (_: Throwable) { 0 }
+        backgroundExecutor.execute {
+            try {
+                val list = NosmaiCloud.list()
+                val out = ArrayList<Map<String, Any?>>()
+                for (it in list) {
+                    val id = it.id
+                    val name = it.name
+                    val displayName = toTitleCase(if (name.isNotBlank()) name else id)
+                    val type = "cloud"
+                    val downloaded = it.isDownloaded
+                    val localPath = it.localPath
+                    val filterType = mapCategoryToFilterType(it.category)
+                    val fileSize = try {
+                        if (downloaded && localPath.isNotBlank()) File(localPath).length().toInt() else 0
+                    } catch (_: Throwable) {
+                        0
+                    }
 
-                val m = HashMap<String, Any?>()
-                m["id"] = id
-                m["name"] = name
-                m["displayName"] = displayName
-                m["type"] = type
-                m["filterType"] = filterType
-                m["isDownloaded"] = downloaded
-                m["fileSize"] = fileSize
-                m["isFree"] = true
-                
-                if (downloaded && localPath.isNotBlank()) {
-                    m["path"] = localPath
-                    m["localPath"] = localPath
-                    try {
-                        val bmp = com.nosmai.effect.NosmaiFilterManager.loadPreviewImageForFilter(localPath)
-                        if (bmp != null) {
-                            m["previewImageBase64"] = bitmapToBase64(bmp)
-                        }
-                    } catch (_: Throwable) {}
+                    val m = HashMap<String, Any?>()
+                    m["id"] = id
+                    m["name"] = name
+                    m["displayName"] = displayName
+                    m["type"] = type
+                    m["filterType"] = filterType
+                    m["isDownloaded"] = downloaded
+                    m["fileSize"] = fileSize
+                    m["isFree"] = true
+
+                    if (downloaded && localPath.isNotBlank()) {
+                        m["path"] = localPath
+                        m["localPath"] = localPath
+                        try {
+                            val bmp = com.nosmai.effect.NosmaiFilterManager.loadPreviewImageForFilter(localPath)
+                            if (bmp != null) {
+                                m["previewImageBase64"] = bitmapToBase64(bmp)
+                            }
+                        } catch (_: Throwable) {}
+                    }
+
+                    if (it.thumbnailUrl.isNotBlank()) {
+                        m["previewUrl"] = it.thumbnailUrl
+                        m["thumbnailUrl"] = it.thumbnailUrl
+                    }
+
+                    out.add(m)
                 }
-                
-                if (it.thumbnailUrl.isNotBlank()) {
-                    m["previewUrl"] = it.thumbnailUrl  
-                    m["thumbnailUrl"] = it.thumbnailUrl
+                mainHandler.post { result.success(out) }
+            } catch (t: Throwable) {
+                mainHandler.post {
+                    result.error("CLOUD_FILTERS_ERROR", t.message, null)
                 }
-                
-                out.add(m)
             }
-            result.success(out)
-        } catch (t: Throwable) {
-            result.error("CLOUD_FILTERS_ERROR", t.message, null)
         }
     }
 
