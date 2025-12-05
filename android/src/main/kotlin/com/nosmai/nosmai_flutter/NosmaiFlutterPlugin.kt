@@ -84,6 +84,8 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private var lastCleanupAtMs: Long = 0L
     private var usingPlatformView: Boolean = false
     private var isCameraPaused: Boolean = false  // New flag for pause/resume
+    private var isCameraStarting: Boolean = false
+    private var isCameraRunning: Boolean = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val backgroundExecutor: ExecutorService = Executors.newCachedThreadPool()
 
@@ -246,8 +248,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                         override fun getView(): android.view.View = container
                         override fun dispose() {
                             try {
-                                camera2Helper?.stopCamera()
-                                camera2Helper = null
+                                stopCameraHelper(true)
                             } catch (e: Throwable) {
                             }
                             try {
@@ -619,8 +620,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         try {
             cleanupInProgress = true
             lastCleanupAtMs = System.currentTimeMillis()
-            try { camera2Helper?.stopCamera() } catch (_: Throwable) {}
-            camera2Helper = null
+            stopCameraHelper(true)
             NosmaiSDK.stopProcessing()
             isProcessingActive = false
             result.success(null)
@@ -649,7 +649,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
             // Only stop camera hardware - SDK processing stays active
             try {
-                camera2Helper?.stopCamera()
+                stopCameraHelper(false)
                 Log.d(TAG, "Camera hardware stopped")
             } catch (e: Throwable) {
                 Log.w(TAG, "Camera stop warning: ${e.message}")
@@ -681,17 +681,11 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
             }
 
             try {
-                val helper = camera2Helper
-                if (helper != null) {
-                    helper.startCamera()
-                } else {
-                    startCamera()
-                }
+                startCamera()
             } catch (e: Throwable) {
                 Log.w(TAG, "Camera restart warning: ${e.message}")
             }
 
-            isCameraPaused = false
             result.success(true)
 
         } catch (t: Throwable) {
@@ -703,8 +697,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
     private fun handleDetachCameraView(result: Result) {
         try {
             try { camera2Helper?.cancelRetry() } catch (_: Throwable) {}
-            try { camera2Helper?.stopCamera() } catch (_: Throwable) {}
-            camera2Helper = null
+            stopCameraHelper(true)
             isProcessingActive = false
             pendingStartProcessing = false
             surfaceReboundOnce = false
@@ -848,8 +841,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 try {
                     isFrontCamera = !isFrontCamera
 
-                    try { camera2Helper?.stopCamera() } catch (_: Throwable) {}
-                    camera2Helper = null
+                    stopCameraHelper(true)
 
                     surfaceReboundOnce = false
 
@@ -866,6 +858,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                             } else {
                                 try { existing.stopCamera() } catch (_: Throwable) {}
                                 existing.setFacing(isFrontCamera)
+                                isCameraRunning = false
                             }
                             ensureCameraPermissionThenStart()
                             try {
@@ -1941,8 +1934,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                         isProcessingActive = false
                     }
                     
-                    camera2Helper?.stopCamera()
-                    camera2Helper = null
+                    stopCameraHelper(true)
                     
                     NosmaiEffects.removeEffect()
                     NosmaiBeauty.removeAllBeautyFilters()
@@ -1980,8 +1972,7 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
 
             try {
                 // 1. Stop camera hardware first
-                camera2Helper?.stopCamera()
-                camera2Helper = null
+                stopCameraHelper(true)
                 Log.d(TAG, "   ✓ Camera stopped")
             } catch (e: Throwable) {
                 Log.w(TAG, "   ⚠️ Camera stop warning: ${e.message}")
@@ -2571,32 +2562,18 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
         }
     }
 
-    private fun startCamera() {
-        val act = activity ?: return
-        val pv = previewView ?: return
-
-        val oldHelper = camera2Helper
-        if (oldHelper != null) {
-            try {
-                oldHelper.stopCamera() 
-                Log.d(TAG, "Camera stopped successfully")
-            } catch (e: Throwable) {
-                Log.w(TAG, "Error stopping old camera: ${e.message}")
-            }
+    private fun stopCameraHelper(clearReference: Boolean) {
+        try {
+            camera2Helper?.stopCamera()
+        } catch (_: Throwable) {}
+        if (clearReference) {
             camera2Helper = null
+            isCameraPaused = false
         }
+        isCameraRunning = false
+    }
 
-        camera2Helper = Camera2Helper(act, isFrontCamera)
-        val helper = camera2Helper ?: return
-
-        val w = pendingSurfaceWidth
-        val h = pendingSurfaceHeight
-        if (w != null && h != null) {
-            helper.setTargetDimensions(w, h)
-        }
-
-        pv.setCameraOrientation(helper.isFrontCamera, helper.sensorOrientation)
-
+    private fun attachCameraFrameCallback(helper: Camera2Helper, pv: NosmaiPreviewView) {
         helper.setFrameCallback(object : Camera2Helper.FrameCallback {
             override fun onFrameAvailable(
                 y: java.nio.ByteBuffer?, u: java.nio.ByteBuffer?, v: java.nio.ByteBuffer?,
@@ -2664,8 +2641,67 @@ class NosmaiFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plu
                 pv.requestRenderUpdate()
             }
         })
+    }
 
-        helper.startCamera()
+    private fun startCamera() {
+        val act = activity ?: return
+        val pv = previewView ?: return
+        val existingHelper = camera2Helper
+
+        if (existingHelper != null) {
+            if (isCameraPaused) {
+                pv.setCameraOrientation(existingHelper.isFrontCamera, existingHelper.sensorOrientation)
+                attachCameraFrameCallback(existingHelper, pv)
+                try {
+                    existingHelper.startCamera()
+                    isCameraRunning = true
+                    isCameraPaused = false
+                } catch (e: Throwable) {
+                    Log.w(TAG, "Camera restart warning: ${e.message}")
+                }
+                return
+            }
+
+            if (isCameraRunning) {
+                val w = pendingSurfaceWidth
+                val h = pendingSurfaceHeight
+                if (w != null && h != null) {
+                    existingHelper.setTargetDimensions(w, h)
+                }
+                pv.setCameraOrientation(existingHelper.isFrontCamera, existingHelper.sensorOrientation)
+                attachCameraFrameCallback(existingHelper, pv)
+                return
+            }
+        }
+
+        if (isCameraStarting) {
+            return
+        }
+
+        isCameraStarting = true
+        try {
+            if (existingHelper != null) {
+                stopCameraHelper(true)
+            }
+
+            camera2Helper = Camera2Helper(act, isFrontCamera)
+            val helper = camera2Helper ?: return
+
+            val w = pendingSurfaceWidth
+            val h = pendingSurfaceHeight
+            if (w != null && h != null) {
+                helper.setTargetDimensions(w, h)
+            }
+
+            pv.setCameraOrientation(helper.isFrontCamera, helper.sensorOrientation)
+            attachCameraFrameCallback(helper, pv)
+
+            helper.startCamera()
+            isCameraRunning = true
+            isCameraPaused = false
+        } finally {
+            isCameraStarting = false
+        }
     }
 
     private fun calculateFrameRotation(sensorOrientation: Int, front: Boolean): Int {
