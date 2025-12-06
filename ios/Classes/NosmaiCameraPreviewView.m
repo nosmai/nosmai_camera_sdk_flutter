@@ -104,6 +104,7 @@
 @property(nonatomic, assign) BOOL wasDetachedGracefully;
 @property(nonatomic, strong) dispatch_semaphore_t setupSemaphore;
 @property(nonatomic, assign) NSInteger setupRetryCount;
+@property(nonatomic, strong) UIView* coverView;
 @end
 
 @implementation NosmaiCameraPreviewView
@@ -194,6 +195,14 @@
         
         // Setup camera preview immediately since SDK is pre-warmed
         [self performCameraAttachment];
+        
+        // Create cover view to hide initial flash
+        _coverView = [[UIView alloc] initWithFrame:_nativeView.bounds];
+        _coverView.backgroundColor = [UIColor blackColor];
+        _coverView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        _coverView.userInteractionEnabled = NO; // Let touches pass through if needed, though usually not for preview
+        [_nativeView addSubview:_coverView];
+
     }
     return self;
 }
@@ -312,6 +321,20 @@
     // Essential fillMode configuration (the key fix)
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [self configureNosmaiViewFillMode];
+        
+        // Ensure cover view is on top
+        [self->_nativeView bringSubviewToFront:self.coverView];
+        self.coverView.hidden = NO;
+        self.coverView.alpha = 1.0;
+        
+        // Fade out cover view after a short delay to allow first frame to render
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [UIView animateWithDuration:0.3 animations:^{
+                self.coverView.alpha = 0.0;
+            } completion:^(BOOL finished) {
+                self.coverView.hidden = YES;
+            }];
+        });
     });
     
     
