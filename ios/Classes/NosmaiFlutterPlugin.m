@@ -1287,112 +1287,118 @@
     return;
   }
   
-  NSArray<NSDictionary *> *cloudFilters = [[NosmaiSDK sharedInstance] getCloudFilters];
-  
-  if (cloudFilters && cloudFilters.count > 0) {
-    NSMutableArray *enhancedFilters = [NSMutableArray array];
+  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+    NSArray<NSDictionary *> *cloudFilters = [[NosmaiSDK sharedInstance] getCloudFilters];
     
-    for (NSDictionary *filter in cloudFilters) {
-      NSMutableDictionary *enhancedFilter = [filter mutableCopy];
+    if (cloudFilters && cloudFilters.count > 0) {
+      NSMutableArray *enhancedFilters = [NSMutableArray array];
       
-      id pathValue = filter[@"path"];
-      id localPathValue = filter[@"localPath"];
-      NSString *filterPath = nil;
-      
-      if ([pathValue isKindOfClass:[NSString class]]) {
-        filterPath = pathValue;
-      } else if ([localPathValue isKindOfClass:[NSString class]]) {
-        filterPath = localPathValue;
-      }
-      
-      if (!filterPath || filterPath.length == 0) {
-        NSString *filterId = filter[@"id"] ?: filter[@"filterId"];
-        NSString *filterName = filter[@"name"];
-        NSString *category = filter[@"filterCategory"];
+      for (NSDictionary *filter in cloudFilters) {
+        NSMutableDictionary *enhancedFilter = [filter mutableCopy];
         
-        if (filterId && filterName && category) {
-          NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-          if (paths.count > 0) {
-            NSString *cachesDir = paths[0];
-            NSString *cloudFiltersDir = [cachesDir stringByAppendingPathComponent:@"NosmaiCloudFilters"];
-            NSString *normalizedName = [[filterName lowercaseString] stringByReplacingOccurrencesOfString:@" " withString:@"_"];
-            NSArray *possibleFilenames = @[
-              [NSString stringWithFormat:@"%@_%@_%@.nosmai", category, normalizedName, filterId],
-              [NSString stringWithFormat:@"%@_%@.nosmai", category, filterId],
-              [NSString stringWithFormat:@"%@.nosmai", filterId],
-              [NSString stringWithFormat:@"special-effects_%@_%@.nosmai", normalizedName, filterId], 
-            ];
-            
-            for (NSString *filename in possibleFilenames) {
-              NSString *possiblePath = [cloudFiltersDir stringByAppendingPathComponent:filename];
-              if ([[NSFileManager defaultManager] fileExistsAtPath:possiblePath]) {
-                filterPath = possiblePath;
-                break;
+        id pathValue = filter[@"path"];
+        id localPathValue = filter[@"localPath"];
+        NSString *filterPath = nil;
+        
+        if ([pathValue isKindOfClass:[NSString class]]) {
+          filterPath = pathValue;
+        } else if ([localPathValue isKindOfClass:[NSString class]]) {
+          filterPath = localPathValue;
+        }
+        
+        if (!filterPath || filterPath.length == 0) {
+          NSString *filterId = filter[@"id"] ?: filter[@"filterId"];
+          NSString *filterName = filter[@"name"];
+          NSString *category = filter[@"filterCategory"];
+          
+          if (filterId && filterName && category) {
+            NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+            if (paths.count > 0) {
+              NSString *cachesDir = paths[0];
+              NSString *cloudFiltersDir = [cachesDir stringByAppendingPathComponent:@"NosmaiCloudFilters"];
+              NSString *normalizedName = [[filterName lowercaseString] stringByReplacingOccurrencesOfString:@" " withString:@"_"];
+              NSArray *possibleFilenames = @[
+                [NSString stringWithFormat:@"%@_%@_%@.nosmai", category, normalizedName, filterId],
+                [NSString stringWithFormat:@"%@_%@.nosmai", category, filterId],
+                [NSString stringWithFormat:@"%@.nosmai", filterId],
+                [NSString stringWithFormat:@"special-effects_%@_%@.nosmai", normalizedName, filterId], 
+              ];
+              
+              for (NSString *filename in possibleFilenames) {
+                NSString *possiblePath = [cloudFiltersDir stringByAppendingPathComponent:filename];
+                if ([[NSFileManager defaultManager] fileExistsAtPath:possiblePath]) {
+                  filterPath = possiblePath;
+                  break;
+                }
               }
             }
           }
         }
-      }
-      
-      if (filter[@"filterCategory"] && ![filter[@"filterCategory"] isKindOfClass:[NSNull class]]) {
-        enhancedFilter[@"filterCategory"] = filter[@"filterCategory"];
-      }
-      
-      if (enhancedFilter[@"type"]) {
-        enhancedFilter[@"originalType"] = enhancedFilter[@"type"];
-      }
-      enhancedFilter[@"type"] = @"cloud";
-      
-      NSString *filterType = @"effect"; 
-      NSString *filterCategory = filter[@"filterCategory"];
-      if (filterCategory && [filterCategory isKindOfClass:[NSString class]]) {
-        if ([filterCategory isEqualToString:@"cloud-filters"] || [filterCategory isEqualToString:@"fx-and-filters"]) {
-          filterType = @"filter";
-        } else if ([filterCategory isEqualToString:@"beauty-effects"] || [filterCategory isEqualToString:@"special-effects"]) {
-          filterType = @"effect";
+        
+        if (filter[@"filterCategory"] && ![filter[@"filterCategory"] isKindOfClass:[NSNull class]]) {
+          enhancedFilter[@"filterCategory"] = filter[@"filterCategory"];
         }
-      }
-      enhancedFilter[@"filterType"] = filterType;
-      
-      BOOL isDownloaded = NO;
-      
-      if (filterPath && [[NSFileManager defaultManager] fileExistsAtPath:filterPath]) {
-        isDownloaded = YES;
-      }
-      
-      if (isDownloaded && filterPath && [[NSFileManager defaultManager] fileExistsAtPath:filterPath]) {
-        UIImage *previewImage = [[NosmaiSDK sharedInstance] loadPreviewImageForFilter:filterPath];
-        if (previewImage) {
-          NSData *imageData = UIImageJPEGRepresentation(previewImage, 0.7);
-          if (imageData) {
-            NSString *base64String = [imageData base64EncodedStringWithOptions:0];
-            enhancedFilter[@"previewImageBase64"] = base64String;
+        
+        if (enhancedFilter[@"type"]) {
+          enhancedFilter[@"originalType"] = enhancedFilter[@"type"];
+        }
+        enhancedFilter[@"type"] = @"cloud";
+        
+        NSString *filterType = @"effect"; 
+        NSString *filterCategory = filter[@"filterCategory"];
+        if (filterCategory && [filterCategory isKindOfClass:[NSString class]]) {
+          if ([filterCategory isEqualToString:@"cloud-filters"] || [filterCategory isEqualToString:@"fx-and-filters"]) {
+            filterType = @"filter";
+          } else if ([filterCategory isEqualToString:@"beauty-effects"] || [filterCategory isEqualToString:@"special-effects"]) {
+            filterType = @"effect";
           }
         }
+        enhancedFilter[@"filterType"] = filterType;
+        
+        BOOL isDownloaded = NO;
+        
+        if (filterPath && [[NSFileManager defaultManager] fileExistsAtPath:filterPath]) {
+          isDownloaded = YES;
+        }
+        
+        if (isDownloaded && filterPath && [[NSFileManager defaultManager] fileExistsAtPath:filterPath]) {
+          UIImage *previewImage = [[NosmaiSDK sharedInstance] loadPreviewImageForFilter:filterPath];
+          if (previewImage) {
+            NSData *imageData = UIImageJPEGRepresentation(previewImage, 0.7);
+            if (imageData) {
+              NSString *base64String = [imageData base64EncodedStringWithOptions:0];
+              enhancedFilter[@"previewImageBase64"] = base64String;
+            }
+          }
+        }
+        
+        enhancedFilter[@"isDownloaded"] = @(isDownloaded);
+        if (isDownloaded && filterPath) {
+          enhancedFilter[@"path"] = filterPath;
+          enhancedFilter[@"localPath"] = filterPath;
+        }
+        
+        [enhancedFilters addObject:enhancedFilter];
       }
       
-      enhancedFilter[@"isDownloaded"] = @(isDownloaded);
-      if (isDownloaded && filterPath) {
-        enhancedFilter[@"path"] = filterPath;
-        enhancedFilter[@"localPath"] = filterPath;
-      }
-      
-      [enhancedFilters addObject:enhancedFilter];
+      NSArray<NSDictionary *> *sanitizedFilters = [self sanitizeFiltersForFlutter:enhancedFilters];
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (!sanitizedFilters || sanitizedFilters.count == 0) {
+          result([FlutterError errorWithCode:@"CLOUD_FILTER_PROCESSING_FAILED"
+                                     message:@"Failed to process cloud filters"
+                                     details:@"Cloud filters received but could not be processed properly."]);
+          return;
+        }
+        result(sanitizedFilters);
+      });
+    } else {
+      dispatch_async(dispatch_get_main_queue(), ^{
+        result([FlutterError errorWithCode:@"CLOUD_FILTERS_NOT_AVAILABLE"
+                                   message:@"Cloud filters are not available"
+                                   details:@"No cloud filters found. This could be due to server issues or your account may not have access to cloud filters."]);
+      });
     }
-    
-    NSArray<NSDictionary *> *sanitizedFilters = [self sanitizeFiltersForFlutter:enhancedFilters];
-    if (!sanitizedFilters || sanitizedFilters.count == 0) {
-      result([FlutterError errorWithCode:@"CLOUD_FILTER_PROCESSING_FAILED"
-                                 message:@"Failed to process cloud filters"
-                                 details:@"Cloud filters received but could not be processed properly."]);
-      return;
-    }
-    result(sanitizedFilters);
-  } else {
-    result([FlutterError errorWithCode:@"CLOUD_FILTERS_NOT_AVAILABLE"
-                               message:@"Cloud filters are not available"
-                               details:@"No cloud filters found. This could be due to server issues or your account may not have access to cloud filters."]);
-  }
+  });
 }
 
 - (void)handleGetLocalFilters:(FlutterMethodCall*)call result:(FlutterResult)result {
