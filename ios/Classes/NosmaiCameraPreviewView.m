@@ -41,20 +41,14 @@
     if (core && core.isInitialized && core.camera) {
         // Update all sublayers to fill the bounds
         for (CALayer* layer in self.layer.sublayers) {
-            // Set the layer frame to match the view bounds exactly
-            layer.frame = self.bounds;
-            
-            // Use aspect fill to ensure full coverage without letterboxing
-            layer.contentsGravity = kCAGravityResizeAspectFill;
-            
-            // Ensure the layer is properly positioned
-            layer.position = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
-            
-            // Enable bounds clipping to prevent overflow
-            layer.masksToBounds = YES;
-            
-            // Force the layer to update its display
-            [layer setNeedsDisplay];
+            // Only update if frame changed to avoid thrashing
+            if (!CGRectEqualToRect(layer.frame, self.bounds)) {
+                layer.frame = self.bounds;
+                layer.contentsGravity = kCAGravityResizeAspectFill;
+                layer.position = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
+                layer.masksToBounds = YES;
+                [layer setNeedsDisplay];
+            }
         }
         
         // Force resize of all NosmaiView subviews
@@ -249,8 +243,16 @@
     dispatch_async(dispatch_get_main_queue(), ^{
         NosmaiCore* core = [NosmaiCore shared];
         
+        // Non-blocking check for setup semaphore
+        if (dispatch_semaphore_wait(self.setupSemaphore, DISPATCH_TIME_NOW) != 0) {
+            // Semaphore is locked, retry later
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self performCameraAttachment];
+            });
+            return;
+        }
+        
         if (!core || !core.isInitialized) {
-            dispatch_semaphore_wait(self.setupSemaphore, DISPATCH_TIME_FOREVER);
             self.isSetupInProgress = NO;
             dispatch_semaphore_signal(self.setupSemaphore);
             return;
@@ -258,7 +260,6 @@
         
         // Don't setup during recording to prevent black screen
         if (core.isRecording) {
-            dispatch_semaphore_wait(self.setupSemaphore, DISPATCH_TIME_FOREVER);
             self.isSetupInProgress = NO;
             dispatch_semaphore_signal(self.setupSemaphore);
             return;
@@ -271,6 +272,19 @@
             [core.camera detachFromView];
             self.isAttached = NO;
         }
+        
+        // Release semaphore before calling attach, as attach might need to wait on other things
+        // or we can keep it locked if attach is fast. 
+        // In this case, attachCameraToView calls completeAttachment which grabs semaphore at the end.
+        // So we should RELEASE it here to avoid deadlock if completeAttachment needs it?
+        // Wait, completeAttachment waits for semaphore at the end to clear flags.
+        // So we MUST release it here? 
+        // No, completeAttachment is called synchronously below.
+        // Let's look at completeAttachment. It waits for semaphore at line 342.
+        // If we hold it here, we DEADLOCK.
+        // So we must release it before calling attachCameraToView.
+        
+        dispatch_semaphore_signal(self.setupSemaphore);
         
         // Attach immediately without delay
         [self attachCameraToView];
@@ -424,8 +438,15 @@
 
 - (void)detachCameraGracefully {
     
-    // Use semaphore to ensure thread-safe detachment
-    dispatch_semaphore_wait(self.setupSemaphore, DISPATCH_TIME_FOREVER);
+    // Use timeout to avoid blocking main thread forever
+    dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC));
+    if (dispatch_semaphore_wait(self.setupSemaphore, timeout) != 0) {
+        NSLog(@"[NosmaiCameraPreview] Timeout waiting for semaphore in detach");
+        // Proceed anyway if we are deallocating or force detaching, 
+        // but strictly speaking we should be careful.
+        // For now, just log and skip to avoid ANR.
+        return;
+    }
     
     NosmaiCore* core = [NosmaiCore shared];
     if (core && core.isInitialized && self.isAttached) {
